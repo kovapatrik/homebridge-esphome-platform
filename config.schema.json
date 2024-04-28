@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "esphome-platform",
   "pluginType": "platform",
   "singular": true,
   "schema": {

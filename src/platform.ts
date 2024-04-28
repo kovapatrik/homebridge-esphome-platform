@@ -43,6 +43,8 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
       // const client = new Client({ host: device.host });
       // this.addDevice(client);
     });
+
+    discovery.run();
   }
 
   // addDevice(client: Client) {
