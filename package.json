@@ -1,7 +1,8 @@
 {
   "displayName": "Homebridge ESPHome Platform",
   "name": "homebridge-esphome-platform",
-  "version": "1.0.0",
+  "type": "module",
+  "version": "0.1.0",
   "description": "Homebridge plugin for ESPHome devices",
   "license": "Apache-2.0",
   "repository": {
@@ -11,32 +12,46 @@
   "bugs": {
     "url": "https://github.com/kovapatrik/homebridge-esphome-platform/issues"
   },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/kovapatrik"
+    },
+    {
+      "type": "buymeacoffee",
+      "url": "https://www.buymeacoffee.com/kovapatrik"
+    }
+  ],
   "engines": {
-    "node": "^18.17.0 || ^20.9.0",
-    "homebridge": "^1.6.0"
+    "node": "^18.20.4 || ^20.18.0 || ^22.10.0",
+    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
   "main": "dist/index.js",
   "scripts": {
-    "lint": "eslint src/**/*.ts --max-warnings=0",
+    "lint": "biome lint --error-on-warnings ./src",
     "watch": "npm run build && npm link && nodemon",
     "build": "rimraf ./dist && tsc",
-    "prepublishOnly": "npm run lint && npm run build"
+    "prepublishOnly": "npm run lint && npm run build",
+    "format": "biome format ./src --write",
+    "check": "biome check ./src --fix"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "esphome"
   ],
-  "devDependencies": {
-    "@types/node": "^20.12.7",
-    "@typescript-eslint/eslint-plugin": "^7.7.0",
-    "@typescript-eslint/parser": "^7.7.0",
-    "eslint": "^8.57.0",
-    "homebridge": "^1.8.0",
-    "nodemon": "^3.1.0",
-    "rimraf": "^5.0.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
-  },
   "dependencies": {
-    "@2colors/esphome-native-api": "^1.3.1"
+    "@homebridge/plugin-ui-utils": "^2.0.2",
+    "@kovapatrik/esphomeapi-manager": "file:../esphomeapi/crates/esphomeapi-manager-node",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/lodash": "^4.17.17",
+    "@types/node": "^22.8.1",
+    "homebridge": "^2.0.0-beta.0",
+    "nodemon": "^3.1.7",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
   }
 }

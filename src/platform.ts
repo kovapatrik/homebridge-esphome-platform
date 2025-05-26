@@ -1,20 +1,32 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-
-// import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-
-import { Discovery } from '@2colors/esphome-native-api';
+import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
+import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
+import lodash from 'lodash';
+import EsphomeAccessory from './platformAccesory.js';
+import { type Config, defaultConfig } from './platformUtils.js';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
+const { defaultsDeep } = lodash;
 
 export class EsphomePlatform implements DynamicPlatformPlugin {
-  public readonly Service: typeof Service = this.api.hap.Service;
-  public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
+  public readonly Service: typeof Service;
+  public readonly Characteristic: typeof Characteristic;
 
-  public readonly accessories: PlatformAccessory[] = [];
+  // this is used to track restored cached accessories
+  public readonly accessories: Map<string, PlatformAccessory> = new Map();
+  public readonly discoveredCacheUUIDs: string[] = [];
+
+  private readonly platformConfig: Config;
 
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
+    this.Service = api.hap.Service;
+    this.Characteristic = api.hap.Characteristic;
+
+    // Add default config values
+    this.platformConfig = defaultsDeep(config, defaultConfig);
+
     this.log.debug('Finished initializing platform:', this.config.name);
 
     if (!log.success) {
@@ -30,61 +42,55 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
   configureAccessory(accessory: PlatformAccessory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
 
-    this.accessories.push(accessory);
+    this.accessories.set(accessory.UUID, accessory);
   }
 
-  discoverDevices() {
+  async discoverDevices() {
+    const discoveredDevices = await discover(5);
 
-    const discovery = new Discovery({});
+    for (const device of this.platformConfig.devices) {
+      const serviceInfo = discoveredDevices.find((d) => d.server === device.serverName);
+      if (!serviceInfo) {
+        this.log.debug(`[${device.serverName}] Device not found.`);
+        continue;
+      }
 
-    discovery.on('info', (device) => {
-      this.log.info('Discovered device:', device.name);
+      const uuid = this.api.hap.uuid.generate(device.serverName);
 
-      // const client = new Client({ host: device.host });
-      // this.addDevice(client);
-    });
+      const manager = await Manager.connect({
+        address: device.serverName,
+        port: device.port,
+        password: device.password,
+        psk: device.psk,
+      });
 
-    discovery.run();
+      const existingAccessory = this.accessories.get(uuid);
+      if (existingAccessory) {
+        // the accessory already exists
+        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+
+        new EsphomeAccessory(this, existingAccessory, manager, device);
+        this.discoveredCacheUUIDs.push(uuid);
+        continue;
+      }
+
+      this.log.info('Adding new accessory:', device.serverName);
+      const accessory = new this.api.platformAccessory(device.serverName, uuid);
+
+      new EsphomeAccessory(this, accessory, manager, device);
+
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.discoveredCacheUUIDs.push(uuid);
+    }
+
+    // you can also deal with accessories from the cache which are no longer present by removing them from Homebridge
+    // for example, if your plugin logs into a cloud account to retrieve a device list, and a user has previously removed a device
+    // from this cloud account, then this device will no longer be present in the device list but will still be in the Homebridge cache
+    for (const [uuid, accessory] of this.accessories) {
+      if (!this.discoveredCacheUUIDs.includes(uuid)) {
+        this.log.info('Removing existing accessory from cache:', accessory.displayName);
+        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      }
+    }
   }
-
-  // addDevice(client: Client) {
-
-  //   const uuid = this.api.hap.uuid.generate(device);
-  //   const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
-
-  //   if (existingAccessory) {
-  //     // the accessory already exists
-  //     this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-  //     // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. e.g.:
-  //     // existingAccessory.context.device = device;
-  //     // this.api.updatePlatformAccessories([existingAccessory]);
-
-  //     // create the accessory handler for the restored accessory
-  //     // this is imported from `platformAccessory.ts`
-  //     new ExamplePlatformAccessory(this, existingAccessory);
-
-  //     // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, e.g.:
-  //     // remove platform accessories when no longer present
-  //     // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-  //     // this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
-  //   } else {
-  //     // the accessory does not yet exist, so we need to create it
-  //     this.log.info('Adding new accessory:', device.exampleDisplayName);
-
-  //     // create a new accessory
-  //     const accessory = new this.api.platformAccessory(device.exampleDisplayName, uuid);
-
-  //     // store a copy of the device object in the `accessory.context`
-  //     // the `context` property can be used to store any data about the accessory you may need
-  //     accessory.context.device = device;
-
-  //     // create the accessory handler for the newly create accessory
-  //     // this is imported from `platformAccessory.ts`
-  //     new ExamplePlatformAccessory(this, accessory);
-
-  //     // link the accessory to your platform
-  //     this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-  //   }
-  // }
 }

@@ -5,6 +5,17 @@ export type Config = {
 };
 
 export type DeviceConfig = {
-  name: string;
-  apiKey: string;
+  serverName: string;
+  ip: string;
+  port: number;
+  psk?: string;
+  password?: string;
+  mainEntityKey: number;
+};
+
+export const defaultConfig: DeviceConfig = {
+  serverName: '',
+  ip: '',
+  port: 6053,
+  mainEntityKey: 0,
 };
