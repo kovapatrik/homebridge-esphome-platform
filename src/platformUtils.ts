@@ -6,7 +6,7 @@ export type Config = {
 
 export type DeviceConfig = {
   serverName: string;
-  ip: string;
+  ip?: string;
   port: number;
   psk?: string;
   password?: string;
