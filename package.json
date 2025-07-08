@@ -41,7 +41,7 @@
   ],
   "dependencies": {
     "@homebridge/plugin-ui-utils": "^2.0.2",
-    "@kovapatrik/esphomeapi-manager": "file:../esphomeapi/crates/esphomeapi-manager-node",
+    "@kovapatrik/esphomeapi-manager": "^0.1.2",
     "lodash": "^4.17.21"
   },
   "devDependencies": {
