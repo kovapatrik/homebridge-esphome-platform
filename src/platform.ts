@@ -1,10 +1,9 @@
 import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
-import lodash from 'lodash';
+import defaultsDeep from 'lodash/defaultsDeep.js';
 import EsphomeAccessory from './platformAccesory.js';
-import { type Config, defaultConfig } from './platformUtils.js';
+import { type Config, defaultConfig, defaultDeviceConfig } from './platformUtils.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-const { defaultsDeep } = lodash;
 
 export class EsphomePlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -48,7 +47,9 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
   async discoverDevices() {
     const discoveredDevices = await discover(5);
 
-    for (const device of this.platformConfig.devices) {
+    for (const _device of this.platformConfig.devices) {
+      const device = defaultsDeep(_device, defaultDeviceConfig);
+
       const serviceInfo = discoveredDevices.find((d) => d.server === device.serverName);
       if (!serviceInfo) {
         this.log.debug(`[${device.serverName}] Device not found.`);
