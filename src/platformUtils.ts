@@ -11,6 +11,12 @@ export type DeviceConfig = {
   psk?: string;
   password?: string;
   mainEntityKey: number;
+  lightConfig: LightConfig;
+};
+
+export type LightConfig = {
+  coolWhite?: number;
+  warmWhite?: number;
 };
 
 export const defaultConfig: Config = {
@@ -23,4 +29,8 @@ export const defaultDeviceConfig: DeviceConfig = {
   serverName: '',
   port: 6053,
   mainEntityKey: 0,
+  lightConfig: {
+    coolWhite: 140,
+    warmWhite: 500,
+  },
 };
