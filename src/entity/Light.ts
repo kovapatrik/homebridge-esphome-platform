@@ -42,11 +42,11 @@ export default class Light extends EventEmitter {
   }
 
   getBrightness(): CharacteristicValue {
-    return this.entity.brightness;
+    return this.entity.brightness * 100;
   }
 
   async setBrightness(value: CharacteristicValue) {
-    await this.entity.sendCommand({ brightness: value as number });
+    await this.entity.sendCommand({ brightness: (value as number) / 100 });
   }
 
   getColorTemperature(): CharacteristicValue {
