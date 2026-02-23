@@ -1,3 +1,5 @@
+import { HapClient } from '@homebridge/hap-client';
+import type { HapMonitor } from '@homebridge/hap-client/dist/monitor.js';
 import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 import defaultsDeep from 'lodash/defaultsDeep.js';
@@ -14,6 +16,8 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
   public readonly discoveredCacheUUIDs: string[] = [];
 
   private readonly platformConfig: Config;
+  private readonly hapClient?: HapClient;
+  private hapMonitor?: HapMonitor;
 
   constructor(
     public readonly log: Logger,
@@ -32,9 +36,17 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
       log.success = log.info;
     }
 
-    this.api.on('didFinishLaunching', () => {
+    if (this.platformConfig.homebridgeEvents.enabled) {
+      this.hapClient = new HapClient({
+        pin: this.platformConfig.homebridgeEvents.pin,
+        config: { debug: true },
+        logger: this.log,
+      });
+    }
+
+    this.api.on('didFinishLaunching', async () => {
       log.debug('Executed didFinishLaunching callback');
-      this.discoverDevices();
+      await this.discoverDevices();
     });
   }
 
@@ -42,6 +54,10 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
     this.log.info('Loading accessory from cache:', accessory.displayName);
 
     this.accessories.set(accessory.UUID, accessory);
+  }
+
+  async monitorHomebridgeDevices() {
+    this.hapMonitor = await this.hapClient?.monitorCharacteristics();
   }
 
   async discoverDevices() {
@@ -70,7 +86,7 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
         // the accessory already exists
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
-        new EsphomeAccessory(this, existingAccessory, manager, device);
+        await EsphomeAccessory.create(this, existingAccessory, manager, device);
         this.discoveredCacheUUIDs.push(uuid);
         continue;
       }
@@ -78,7 +94,7 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
       this.log.info('Adding new accessory:', device.serverName);
       const accessory = new this.api.platformAccessory(device.serverName, uuid);
 
-      new EsphomeAccessory(this, accessory, manager, device);
+      await EsphomeAccessory.create(this, accessory, manager, device);
 
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       this.discoveredCacheUUIDs.push(uuid);

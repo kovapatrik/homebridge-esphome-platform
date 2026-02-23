@@ -1,7 +1,14 @@
 export type Config = {
   verbose: boolean;
   uiDebug: boolean;
+  homebridgeEvents: HomebridgeEventsConfig;
   devices: DeviceConfig[];
+};
+
+export type HomebridgeEventsConfig = {
+  enabled: boolean;
+  port: number;
+  pin: string;
 };
 
 export type DeviceConfig = {
@@ -22,6 +29,11 @@ export type LightConfig = {
 export const defaultConfig: Config = {
   verbose: false,
   uiDebug: false,
+  homebridgeEvents: {
+    enabled: false,
+    port: 51389,
+    pin: '123-45-678',
+  },
   devices: [],
 };
 
