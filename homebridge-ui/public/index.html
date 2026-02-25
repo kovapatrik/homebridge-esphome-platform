@@ -7,7 +7,7 @@
 
       // ── Config ──────────────────────────────────────────────────────────────
       pin: '',
-      pinMissing: false,
+      savedPin: '',
       serviceMap: [],
 
       // ── Discovery ───────────────────────────────────────────────────────────
@@ -44,6 +44,9 @@
           : 'No services found.';
       },
 
+      get pinEmpty()   { return !this.pin.trim(); },
+      get pinChanged() { return this.pin.trim() !== this.savedPin; },
+
       // ── Init ─────────────────────────────────────────────────────────────────
       async init() {
         homebridge.showSpinner();
@@ -58,7 +61,7 @@
 
         this.serviceMap = (configuration?.homebridgeEvents?.serviceMap ?? []).slice();
         this.pin = configuration?.homebridgeEvents?.pin ?? '';
-        this.pinMissing = !this.pin;
+        this.savedPin = this.pin;
 
         this._createForm(configSchema, configuration);
 
@@ -74,6 +77,10 @@
           if (this.serviceMap.length) {
             changes.homebridgeEvents = changes.homebridgeEvents ?? {};
             changes.homebridgeEvents.serviceMap = this.serviceMap;
+          }
+          if (changes.homebridgeEvents?.pin !== undefined) {
+            this.savedPin = changes.homebridgeEvents.pin;
+            this.pin     = changes.homebridgeEvents.pin;
           }
           await homebridge.updatePluginConfig([changes]);
         });
@@ -105,6 +112,15 @@
 
       // ── Discovery ─────────────────────────────────────────────────────────────
       async discover() {
+        if (this.pinEmpty) {
+          homebridge.toast.error('Please enter a Homebridge PIN.');
+          return;
+        }
+        if (this.pinChanged) {
+          await this._persistPin(this.pin.trim());
+          this.savedPin = this.pin.trim();
+        }
+
         this.isDiscovering = true;
         this.discoverStatus = 'Discovering…';
         this.hasDiscovered = false;
@@ -193,6 +209,16 @@
       },
 
       // ── Persist ───────────────────────────────────────────────────────────────
+      async _persistPin(pin) {
+        const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
+        currentConfig.homebridgeEvents = currentConfig.homebridgeEvents ?? {};
+        currentConfig.homebridgeEvents.pin = pin;
+        if (this.serviceMap.length)
+          currentConfig.homebridgeEvents.serviceMap = this.serviceMap;
+        await homebridge.updatePluginConfig([currentConfig]);
+        await homebridge.savePluginConfig();
+      },
+
       async _persist() {
         try {
           const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
@@ -271,25 +297,15 @@
       <!-- Discover Services -->
       <h6 class="border-bottom pb-2 mb-3">Discover Services</h6>
 
-      <div x-show="pinMissing" class="alert alert-warning small py-2">
-        No PIN configured. Set <code>homebridgeEvents.pin</code> in the plugin settings before using discovery.
-      </div>
-
-      <div class="row g-2 align-items-end mb-3">
+      <div class="row g-2 align-items-end mb-2">
         <div class="col-auto">
-          <label class="form-label small mb-1">
-            Homebridge PIN
-            <span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">read-only</span>
-          </label>
-          <input type="text" class="form-control form-control-sm font-monospace bg-body-secondary"
-            :value="pin" placeholder="Not configured" style="width: 155px;" readonly tabindex="-1">
-          <div class="form-text mt-1" style="font-size: 0.7em;">
-            Configured in plugin settings — change it there, not here.
-          </div>
+          <label class="form-label small mb-1">Homebridge PIN</label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+            x-model="pin" placeholder="031-45-154" style="width: 155px;">
         </div>
         <div class="col-auto" style="padding-bottom: 1.6rem;">
           <button class="btn btn-primary btn-sm"
-            :disabled="pinMissing || isDiscovering"
+            :disabled="pinEmpty || isDiscovering"
             @click="discover()">
             Discover Services
           </button>
@@ -299,28 +315,21 @@
         </div>
       </div>
 
+      <div x-show="pinChanged && serviceMap.length > 0"
+           class="alert alert-warning small py-2 mt-2">
+        Discovering with a new PIN will update the plugin configuration.
+        If you are connecting to a <strong>different bridge</strong>,
+        your existing service mappings may no longer be valid — consider
+        removing them first.
+      </div>
+
       <!-- Services table -->
       <div x-show="hasDiscovered">
 
-        <!-- Dynamic filter bar -->
-        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+        <!-- Filter bar -->
+        <div class="d-flex align-items-center gap-3 mb-2">
           <input type="search" class="form-control form-control-sm" x-model="filterText"
             placeholder="Filter by name…" style="max-width: 200px;" autocomplete="off">
-          <template x-if="typeFilters.length">
-            <div class="d-flex flex-wrap align-items-center gap-3">
-              <small class="text-muted">Show:</small>
-              <template x-for="f in typeFilters" :key="f.type">
-                <div class="form-check mb-0">
-                  <input type="checkbox" class="form-check-input"
-                    :id="`filter-${f.type.replace(/\W+/g, '-')}`"
-                    x-model="f.visible">
-                  <label class="form-check-label small"
-                    :for="`filter-${f.type.replace(/\W+/g, '-')}`"
-                    x-text="f.type"></label>
-                </div>
-              </template>
-            </div>
-          </template>
         </div>
 
         <div class="table-responsive">
@@ -328,7 +337,28 @@
             <thead class="table-secondary">
               <tr>
                 <th>Accessory Name</th>
-                <th class="text-nowrap">Service Type</th>
+                <th class="text-nowrap">
+                  Service Type
+                  <template x-if="typeFilters.length">
+                    <div class="dropdown d-inline-block ms-1">
+                      <button class="btn btn-link btn-sm p-0 lh-1" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                        :class="typeFilters.some(f => !f.visible) ? 'text-warning' : 'text-secondary'"
+                        style="font-size: 0.75em; vertical-align: middle; text-decoration: none;">&#9660;</button>
+                      <ul class="dropdown-menu dropdown-menu-end py-1" style="min-width: 0;">
+                        <template x-for="f in typeFilters" :key="f.type">
+                          <li>
+                            <label class="dropdown-item small d-flex align-items-center gap-2 py-1 user-select-none"
+                              style="cursor: pointer;">
+                              <input type="checkbox" class="form-check-input mt-0 flex-shrink-0" x-model="f.visible">
+                              <span x-text="f.type"></span>
+                            </label>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </template>
+                </th>
                 <th style="min-width: 210px;">Mapping Key</th>
                 <th></th>
               </tr>
