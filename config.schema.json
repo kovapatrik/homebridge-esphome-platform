@@ -4,6 +4,7 @@
   "headerDisplay": "This plugin is currently experimental and under development.  Please report [bugs](https://github.com/kovapatrik/homebridge-esphome-platform/issues)",
   "footerDisplay": "For help please see the [homepage](https://github.com/kovapatrik/homebridge-esphome-platform)",
   "singular": true,
+  "customUi": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -40,18 +41,9 @@
             "items": {
               "type": "object",
               "properties": {
-                "key": {
-                  "title": "Key",
-                  "type": "string"
-                },
-                "uniqueId": {
-                  "title": "Unique ID",
-                  "type": "string"
-                },
-                "stableId": {
-                  "title": "Stable ID",
-                  "type": "string"
-                }
+                "key": { "title": "Key", "type": "string" },
+                "uniqueId": { "title": "Unique ID", "type": "string" },
+                "stableId": { "title": "Stable ID", "type": "string" }
               },
               "required": ["key", "uniqueId", "stableId"]
             }
@@ -117,5 +109,14 @@
         }
       }
     }
-  }
+  },
+  "form": [
+    "verbose",
+    "uiDebug",
+    {
+      "key": "homebridgeEvents",
+      "items": ["homebridgeEvents.enabled", "homebridgeEvents.pin"]
+    },
+    "devices"
+  ]
 }

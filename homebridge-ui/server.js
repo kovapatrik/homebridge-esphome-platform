@@ -1,13 +1,13 @@
 import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils';
 import { HapClient } from '@homebridge/hap-client';
-import { defaultConfig } from '../dist/platformUtils.js';
+import { defaultConfig, defaultDeviceConfig } from '../dist/platformUtils.js';
 
 class UiServer extends HomebridgePluginUiServer {
   constructor() {
     super();
 
     this.onRequest('/getDefaults', async () => {
-      return { defaultConfig };
+      return { defaultConfig, defaultDeviceConfig };
     });
 
     this.onRequest('/discoverHapServices', async ({ pin, timeout }) => {

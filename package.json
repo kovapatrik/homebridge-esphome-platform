@@ -35,7 +35,10 @@
     "format": "biome format ./src --write",
     "check": "biome check ./src --fix"
   },
-  "keywords": ["homebridge-plugin", "esphome"],
+  "keywords": [
+    "homebridge-plugin",
+    "esphome"
+  ],
   "dependencies": {
     "@homebridge/hap-client": "^3.3.0",
     "@homebridge/plugin-ui-utils": "^2.0.2",
