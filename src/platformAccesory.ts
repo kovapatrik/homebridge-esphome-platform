@@ -29,8 +29,9 @@ export default class EsphomeAccessory extends EventEmitter {
     }
   }
 
-  private async handleHomeAssistantState(state: HomeAssistantEvent) {
-    if (state.eventType === HomeAssistantEventKind.StateSubscription) {
+  private async handleHomeAssistantState(event: HomeAssistantEvent) {
+    if (event.eventType === HomeAssistantEventKind.StateSubscription) {
+      this.on(event.entityId, async (newState) => {});
     }
   }
 

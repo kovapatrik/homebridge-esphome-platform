@@ -7,8 +7,14 @@ export type Config = {
 
 export type HomebridgeEventsConfig = {
   enabled: boolean;
-  port: number;
   pin: string;
+  serviceMap: HapServiceMapping[];
+};
+
+export type HapServiceMapping = {
+  key: string;
+  uniqueId: string;
+  stableId: string;
 };
 
 export type DeviceConfig = {
@@ -31,8 +37,8 @@ export const defaultConfig: Config = {
   uiDebug: false,
   homebridgeEvents: {
     enabled: false,
-    port: 51389,
-    pin: '123-45-678',
+    pin: '031-45-154',
+    serviceMap: [],
   },
   devices: [],
 };

@@ -1,15 +1,120 @@
 {
   "pluginAlias": "esphome-platform",
   "pluginType": "platform",
+  "headerDisplay": "This plugin is currently experimental and under development.  Please report [bugs](https://github.com/kovapatrik/homebridge-esphome-platform/issues)",
+  "footerDisplay": "For help please see the [homepage](https://github.com/kovapatrik/homebridge-esphome-platform)",
   "singular": true,
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
-        "type": "string",
-        "required": true,
-        "default": "Example Dynamic Platform"
+      "verbose": {
+        "title": "Verbose Logging",
+        "type": "boolean",
+        "default": false
+      },
+      "uiDebug": {
+        "title": "UI Debug Logging",
+        "type": "boolean",
+        "default": false
+      },
+      "homebridgeEvents": {
+        "title": "Homebridge Events",
+        "type": "object",
+        "description": "Config for forwarding Homebridge Events",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean",
+            "default": false
+          },
+          "pin": {
+            "title": "Homebridge Bridge PIN",
+            "type": "string",
+            "pattern": "^[0-9]{3}-[0-9]{2}-[0-9]{3}$",
+            "default": "031-45-154"
+          },
+          "serviceMap": {
+            "title": "Service Map",
+            "description": "Managed by the custom UI. Maps dot-notation keys to Homebridge HAP services.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "title": "Key",
+                  "type": "string"
+                },
+                "uniqueId": {
+                  "title": "Unique ID",
+                  "type": "string"
+                },
+                "stableId": {
+                  "title": "Stable ID",
+                  "type": "string"
+                }
+              },
+              "required": ["key", "uniqueId", "stableId"]
+            }
+          }
+        }
+      },
+      "devices": {
+        "title": "Devices",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "serverName": {
+              "title": "Server Name",
+              "description": "mDNS hostname or IP address of the ESPHome device",
+              "type": "string"
+            },
+            "port": {
+              "title": "Port",
+              "type": "integer",
+              "default": 6053
+            },
+            "ip": {
+              "title": "IP Address",
+              "description": "Optional static IP to use instead of mDNS resolution",
+              "type": "string",
+              "format": "ipv4"
+            },
+            "psk": {
+              "title": "PSK (Pre-Shared Key)",
+              "description": "Noise encryption key for ESPHome API",
+              "type": "string"
+            },
+            "password": {
+              "title": "Password",
+              "description": "Legacy plaintext API password",
+              "type": "string"
+            },
+            "mainEntityKey": {
+              "title": "Main Entity Key",
+              "description": "Key of the primary ESPHome entity for this accessory",
+              "type": "integer",
+              "default": 0
+            },
+            "lightConfig": {
+              "title": "Light Config",
+              "type": "object",
+              "properties": {
+                "coolWhite": {
+                  "title": "Cool White (mireds)",
+                  "type": "integer",
+                  "default": 140
+                },
+                "warmWhite": {
+                  "title": "Warm White (mireds)",
+                  "type": "integer",
+                  "default": 500
+                }
+              }
+            }
+          },
+          "required": ["serverName", "mainEntityKey"]
+        }
       }
     }
   }
