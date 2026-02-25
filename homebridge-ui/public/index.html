@@ -31,11 +31,13 @@
       get filteredServices() {
         const hidden = new Set(this.typeFilters.filter(f => !f.visible).map(f => f.type));
         const text = this.filterText.toLowerCase();
-        return this.discoveredServices.filter(s => {
-          if (hidden.has(s.humanType ?? s.type ?? 'Unknown')) return false;
-          if (text && !(s.serviceName ?? '').toLowerCase().includes(text)) return false;
-          return true;
-        });
+        return this.discoveredServices
+          .filter(s => {
+            if (hidden.has(s.humanType ?? s.type ?? 'Unknown')) return false;
+            if (text && !(s.serviceName ?? '').toLowerCase().includes(text)) return false;
+            return true;
+          })
+          .sort((a, b) => (a.serviceName ?? '').localeCompare(b.serviceName ?? ''));
       },
 
       get noResultsMessage() {
@@ -333,27 +335,26 @@
             <thead class="table-secondary">
               <tr>
                 <th>Accessory Name</th>
-                <th class="text-nowrap" style="position: relative;">
-                  Service Type
-                  <template x-if="typeFilters.length">
-                    <div x-data="{ open: false }" class="d-inline-block ms-1" style="position: relative;">
-                      <button class="btn btn-link btn-sm p-0 lh-1" type="button"
-                        @click="open = !open"
-                        :class="typeFilters.some(f => !f.visible) ? 'text-warning' : 'text-secondary'"
-                        style="font-size: 0.75em; vertical-align: middle; text-decoration: none;">&#9660;</button>
-                      <div x-show="open" @click.outside="open = false"
-                           class="shadow border rounded py-1 bg-body"
-                           style="position: absolute; top: 100%; right: 0; z-index: 1000; min-width: max-content;">
-                        <template x-for="f in typeFilters" :key="f.type">
-                          <label class="d-flex align-items-center gap-2 px-3 py-1 small user-select-none"
-                            style="cursor: pointer; white-space: nowrap;">
-                            <input type="checkbox" class="form-check-input mt-0 flex-shrink-0" x-model="f.visible">
-                            <span x-text="f.type"></span>
-                          </label>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
+                <th x-data="{ open: false }" class="text-nowrap"
+                    :class="typeFilters.length ? 'user-select-none' : ''"
+                    :style="typeFilters.length ? 'position: relative; cursor: pointer;' : 'position: relative;'"
+                    @click="if (typeFilters.length) open = !open"
+                    @click.outside="open = false">
+                  <span :class="typeFilters.some(f => !f.visible) ? 'text-warning' : ''">Service Type</span>
+                  <span x-show="typeFilters.length" class="text-secondary ms-1"
+                        style="font-size: 0.75em;">&#9660;</span>
+                  <div x-show="open"
+                       class="shadow border rounded py-1 bg-body"
+                       style="position: absolute; top: 100%; right: 0; z-index: 1000; min-width: max-content;">
+                    <template x-for="f in typeFilters" :key="f.type">
+                      <label class="d-flex align-items-center gap-2 px-3 py-1 small user-select-none"
+                        style="cursor: pointer; white-space: nowrap;"
+                        @click.stop>
+                        <input type="checkbox" class="form-check-input mt-0 flex-shrink-0" x-model="f.visible">
+                        <span x-text="f.type"></span>
+                      </label>
+                    </template>
+                  </div>
                 </th>
                 <th style="min-width: 210px;">Mapping Key</th>
                 <th></th>
