@@ -104,15 +104,8 @@
             changes.homebridgeEvents = changes.homebridgeEvents ?? {};
             changes.homebridgeEvents.serviceMap = this.serviceMap;
           }
-          // Preserve excludedKeys per device — UI-managed, not in schema form
-          if (changes.devices) {
-            for (let i = 0; i < changes.devices.length; i++) {
-              const saved = this.devices[i];
-              if (saved?.excludedKeys?.length) {
-                changes.devices[i].excludedKeys = saved.excludedKeys;
-              }
-            }
-          }
+          // Devices are fully managed by the wizard — always override the schema form's snapshot
+          changes.devices = this.devices;
           await homebridge.updatePluginConfig([changes]);
         });
       },
@@ -374,7 +367,12 @@
         if (this.editingDeviceIndex !== null) {
           this.devices[this.editingDeviceIndex] = cfg;
         } else {
-          this.devices.push(cfg);
+          const existingIdx = this.devices.findIndex(d => d.serverName === cfg.serverName);
+          if (existingIdx !== -1) {
+            this.devices[existingIdx] = cfg;
+          } else {
+            this.devices.push(cfg);
+          }
         }
         await this._persistDevices();
         homebridge.toast.success(this.editingDeviceIndex !== null ? 'Device updated.' : 'Device added.');
