@@ -22,10 +22,11 @@ export default class EsphomeAccessory extends EventEmitter {
       .setCharacteristic(this.platform.Characteristic.Manufacturer, deviceInfo.manufacturer)
       .setCharacteristic(this.platform.Characteristic.Model, deviceInfo.model);
 
-    const entities = manager.getEntities();
-
-    for (const entity of entities) {
-      EntityFactory.createEntity(entity, platform, accessory, deviceConfig);
+    const excluded = new Set(deviceConfig.excludedKeys ?? []);
+    for (const entity of manager.getEntities()) {
+      if (!excluded.has(entity.key)) {
+        EntityFactory.createEntity(entity, platform, accessory, deviceConfig);
+      }
     }
   }
 

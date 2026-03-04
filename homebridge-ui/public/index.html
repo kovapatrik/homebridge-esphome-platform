@@ -27,6 +27,28 @@
       _defaultConfig: null,
       _defaultDeviceConfig: null,
 
+      // ── ESPHome Devices ──────────────────────────────────────────────────────
+      devices: [],
+
+      esphomeDiscovered: [],
+      isDiscoveringEsphome: false,
+      esphomeDiscoverStatus: '',
+
+      // ── Device config panel ──────────────────────────────────────────────────
+      configuringDevice: null,    // null = hidden | {} or {serverName,address,port}
+      editingDeviceIndex: null,
+      deviceForm: {
+        serverName: '', port: 6053, ip: '',
+        authMode: 'none',   // 'none' | 'psk' | 'password'
+        psk: '', password: '',
+        lightConfig: { coolWhite: 140, warmWhite: 500 },
+      },
+      deviceEntities: [],
+      deviceInfo: null,
+      isLoadingEntities: false,
+      excludedKeys: [],
+      mainEntityKey: null,
+
       // ── Computed ─────────────────────────────────────────────────────────────
       get filteredServices() {
         const hidden = new Set(this.typeFilters.filter(f => !f.visible).map(f => f.type));
@@ -48,6 +70,7 @@
 
       get pinEmpty()   { return !this.pin.trim(); },
       get pinChanged() { return this.pin.trim() !== this.savedPin; },
+      get hasLightEntities() { return this.deviceEntities.some(e => e.kind === 'Light'); },
 
       // ── Init ─────────────────────────────────────────────────────────────────
       async init() {
@@ -61,6 +84,7 @@
         const configSchema = await homebridge.getPluginConfigSchema();
         const configuration = pluginConfig.length ? pluginConfig[0] : {};
 
+        this.devices = (configuration?.devices ?? []).slice();
         this.serviceMap = (configuration?.homebridgeEvents?.serviceMap ?? []).slice();
         this.pin = configuration?.homebridgeEvents?.pin ?? '';
         this.savedPin = this.pin;
@@ -79,6 +103,15 @@
           if (this.serviceMap.length) {
             changes.homebridgeEvents = changes.homebridgeEvents ?? {};
             changes.homebridgeEvents.serviceMap = this.serviceMap;
+          }
+          // Preserve excludedKeys per device — UI-managed, not in schema form
+          if (changes.devices) {
+            for (let i = 0; i < changes.devices.length; i++) {
+              const saved = this.devices[i];
+              if (saved?.excludedKeys?.length) {
+                changes.devices[i].excludedKeys = saved.excludedKeys;
+              }
+            }
           }
           await homebridge.updatePluginConfig([changes]);
         });
@@ -231,6 +264,137 @@
         }
       },
 
+      // ── ESPHome Device Discovery ───────────────────────────────────────────
+      async discoverEsphome() {
+        this.isDiscoveringEsphome = true;
+        this.esphomeDiscoverStatus = 'Scanning…';
+        this.esphomeDiscovered = [];
+        try {
+          const found = await homebridge.request('/discoverEsphomeDevices', {});
+          this.esphomeDiscovered = found;
+          const n = found.length;
+          this.esphomeDiscoverStatus = `Found ${n} device${n !== 1 ? 's' : ''}.`;
+        } catch (e) {
+          homebridge.toast.error(e.message || 'Discovery failed.');
+          this.esphomeDiscoverStatus = 'Discovery failed.';
+        } finally {
+          this.isDiscoveringEsphome = false;
+        }
+      },
+
+      openDeviceConfig(source = {}, deviceIndex = null) {
+        this.configuringDevice = source;
+        this.editingDeviceIndex = deviceIndex;
+        this.deviceEntities = [];
+        this.deviceInfo = null;
+        if (deviceIndex !== null) {
+          const d = this.devices[deviceIndex];
+          this.deviceForm = {
+            serverName: d.serverName,
+            port: d.port ?? 6053,
+            ip: d.ip ?? '',
+            authMode: d.psk ? 'psk' : d.password ? 'password' : 'none',
+            psk: d.psk ?? '',
+            password: d.password ?? '',
+            lightConfig: { coolWhite: 140, warmWhite: 500, ...(d.lightConfig ?? {}) },
+          };
+          this.excludedKeys = (d.excludedKeys ?? []).slice();
+          this.mainEntityKey = d.mainEntityKey ?? null;
+        } else {
+          this.deviceForm = {
+            serverName: source.serverName ?? '',
+            port: source.port ?? 6053,
+            ip: source.address ?? '',
+            authMode: 'none',
+            psk: '', password: '',
+            lightConfig: { coolWhite: 140, warmWhite: 500 },
+          };
+          this.excludedKeys = [];
+          this.mainEntityKey = null;
+        }
+      },
+
+      async loadEntities() {
+        this.isLoadingEntities = true;
+        this.deviceEntities = [];
+        this.deviceInfo = null;
+        try {
+          const { info, entities } = await homebridge.request('/getEsphomeEntities', {
+            address: this.deviceForm.ip || this.deviceForm.serverName,
+            port: this.deviceForm.port,
+            psk:      this.deviceForm.authMode === 'psk'      ? this.deviceForm.psk      : undefined,
+            password: this.deviceForm.authMode === 'password' ? this.deviceForm.password : undefined,
+          });
+          this.deviceInfo = info;
+          this.deviceEntities = entities;
+          if (this.mainEntityKey === null && entities.length)
+            this.mainEntityKey = entities[0].key;
+        } catch (e) {
+          homebridge.toast.error(e.message || 'Failed to connect to device.');
+        } finally {
+          this.isLoadingEntities = false;
+        }
+      },
+
+      isExcluded(key) { return this.excludedKeys.includes(key); },
+
+      toggleExcluded(key) {
+        if (this.isExcluded(key)) {
+          this.excludedKeys = this.excludedKeys.filter(k => k !== key);
+        } else {
+          this.excludedKeys.push(key);
+          if (this.mainEntityKey === key) this.mainEntityKey = null;
+        }
+      },
+
+      async saveDevice() {
+        if (!this.deviceForm.serverName.trim()) {
+          homebridge.toast.error('Server name is required.');
+          return;
+        }
+        if (this.deviceEntities.length && this.mainEntityKey === null) {
+          homebridge.toast.error('Please select a main entity.');
+          return;
+        }
+        const cfg = {
+          serverName: this.deviceForm.serverName.trim(),
+          ...(this.deviceForm.port !== 6053 && { port: this.deviceForm.port }),
+          ...(this.deviceForm.ip      && { ip: this.deviceForm.ip }),
+          ...(this.deviceForm.authMode === 'psk'      && this.deviceForm.psk      && { psk: this.deviceForm.psk }),
+          ...(this.deviceForm.authMode === 'password' && this.deviceForm.password && { password: this.deviceForm.password }),
+          mainEntityKey: this.mainEntityKey ?? 0,
+          ...(this.excludedKeys.length && { excludedKeys: this.excludedKeys }),
+          ...(this.hasLightEntities && {
+            lightConfig: {
+              coolWhite: this.deviceForm.lightConfig.coolWhite,
+              warmWhite: this.deviceForm.lightConfig.warmWhite,
+            },
+          }),
+        };
+        if (this.editingDeviceIndex !== null) {
+          this.devices[this.editingDeviceIndex] = cfg;
+        } else {
+          this.devices.push(cfg);
+        }
+        await this._persistDevices();
+        homebridge.toast.success(this.editingDeviceIndex !== null ? 'Device updated.' : 'Device added.');
+        this.configuringDevice = null;
+        this.editingDeviceIndex = null;
+      },
+
+      async removeDevice(i) {
+        this.devices.splice(i, 1);
+        await this._persistDevices();
+        homebridge.toast.success('Device removed.');
+      },
+
+      async _persistDevices() {
+        const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
+        currentConfig.devices = this.devices;
+        await homebridge.updatePluginConfig([currentConfig]);
+        await homebridge.savePluginConfig();
+      },
+
     }));
   });
 </script>
@@ -251,6 +415,211 @@
 </style>
 
 <div id="main" x-data="app" x-init="init()" x-cloak data-bs-theme="dark">
+
+  <!-- ── ESPHome Devices ─────────────────────────────────────────────────── -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <h5 class="mb-0">ESPHome Devices</h5>
+    </div>
+    <div class="card-body">
+
+      <p class="text-muted small mb-4">
+        Discover ESPHome devices on your network, inspect their entities, and configure which to expose to Homebridge.
+      </p>
+
+      <!-- Configured Devices -->
+      <h6 class="border-bottom pb-2 mb-3">Configured Devices</h6>
+
+      <p x-show="devices.length === 0" class="text-muted small">No devices configured yet.</p>
+
+      <table x-show="devices.length > 0" class="table table-sm mb-4">
+        <thead class="table-secondary">
+          <tr>
+            <th>Server Name</th>
+            <th>Port</th>
+            <th>Main Key</th>
+            <th>Excluded</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(d, i) in devices" :key="i">
+            <tr>
+              <td class="align-middle" x-text="d.serverName"></td>
+              <td class="align-middle" x-text="d.port ?? 6053"></td>
+              <td class="align-middle"><code x-text="d.mainEntityKey"></code></td>
+              <td class="align-middle">
+                <span x-show="d.excludedKeys?.length" class="badge bg-warning text-dark" x-text="d.excludedKeys?.length + ' key(s)'"></span>
+                <span x-show="!d.excludedKeys?.length" class="text-muted small">—</span>
+              </td>
+              <td class="align-middle text-end text-nowrap">
+                <button class="btn btn-outline-secondary btn-sm me-1" @click="openDeviceConfig({}, i)">Edit</button>
+                <button class="btn btn-outline-danger btn-sm" @click="removeDevice(i)">Remove</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <!-- Discover Devices -->
+      <h6 class="border-bottom pb-2 mb-3">Discover Devices</h6>
+
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <button class="btn btn-primary btn-sm" :disabled="isDiscoveringEsphome" @click="discoverEsphome()">
+          <span x-show="isDiscoveringEsphome" class="spinner-border spinner-border-sm me-1" role="status"></span>
+          Discover Devices
+        </button>
+        <small class="text-muted" x-text="esphomeDiscoverStatus"></small>
+        <button class="btn btn-outline-secondary btn-sm ms-auto" @click="openDeviceConfig()">+ Add Manually</button>
+      </div>
+
+      <div x-show="esphomeDiscovered.length > 0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-secondary">
+            <tr>
+              <th>Server Name</th>
+              <th>Address</th>
+              <th>Port</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="device in esphomeDiscovered" :key="device.serverName">
+              <tr>
+                <td class="align-middle" x-text="device.serverName"></td>
+                <td class="align-middle text-muted small font-monospace" x-text="device.address"></td>
+                <td class="align-middle" x-text="device.port"></td>
+                <td class="align-middle text-end">
+                  <button class="btn btn-primary btn-sm" @click="openDeviceConfig(device)">Configure</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Device Config Panel -->
+      <div x-show="configuringDevice !== null" class="mt-4 border rounded p-3">
+
+        <h6 class="border-bottom pb-2 mb-3" x-text="editingDeviceIndex !== null ? 'Edit Device' : 'Configure Device'"></h6>
+
+        <!-- Connection fields -->
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label small mb-1">Server Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" x-model="deviceForm.serverName"
+              placeholder="mydevice.local">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small mb-1">Port</label>
+            <input type="number" class="form-control form-control-sm" x-model.number="deviceForm.port"
+              placeholder="6053">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small mb-1">IP Override</label>
+            <input type="text" class="form-control form-control-sm" x-model="deviceForm.ip"
+              placeholder="192.168.1.100">
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">Authentication</label>
+            <div class="btn-group btn-group-sm w-auto" role="group">
+              <input type="radio" class="btn-check" id="auth-none" x-model="deviceForm.authMode" value="none">
+              <label class="btn btn-outline-secondary" for="auth-none">None</label>
+              <input type="radio" class="btn-check" id="auth-psk" x-model="deviceForm.authMode" value="psk">
+              <label class="btn btn-outline-secondary" for="auth-psk">PSK</label>
+              <input type="radio" class="btn-check" id="auth-password" x-model="deviceForm.authMode" value="password">
+              <label class="btn btn-outline-secondary" for="auth-password">Password</label>
+            </div>
+          </div>
+          <div class="col-sm-8" x-show="deviceForm.authMode === 'psk'">
+            <label class="form-label small mb-1">PSK (Noise Encryption Key)</label>
+            <input type="text" class="form-control form-control-sm font-monospace" x-model="deviceForm.psk"
+              placeholder="base64-encoded key" autocomplete="off">
+          </div>
+          <div class="col-sm-8" x-show="deviceForm.authMode === 'password'">
+            <label class="form-label small mb-1">Password</label>
+            <input type="password" class="form-control form-control-sm" x-model="deviceForm.password"
+              autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <button class="btn btn-secondary btn-sm" :disabled="isLoadingEntities || !deviceForm.serverName.trim()"
+            @click="loadEntities()">
+            <span x-show="isLoadingEntities" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            Connect &amp; Load Entities
+          </button>
+        </div>
+
+        <!-- Device info banner -->
+        <div x-show="deviceInfo" class="alert alert-info py-2 small mb-3">
+          <strong x-text="deviceInfo?.name"></strong>
+          <span class="text-muted ms-2" x-text="deviceInfo?.manufacturer + ' · ' + deviceInfo?.model"></span>
+        </div>
+
+        <!-- Entity table -->
+        <div x-show="deviceEntities.length > 0" class="mb-3">
+          <p class="small text-muted mb-2">Select which entities to include and choose the main entity.</p>
+          <table class="table table-sm table-hover">
+            <thead class="table-secondary">
+              <tr>
+                <th style="width: 2.5rem;">Include</th>
+                <th>Entity Name</th>
+                <th>Type</th>
+                <th style="width: 4rem;" class="text-center">Main</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="e in deviceEntities" :key="e.key">
+                <tr :class="isExcluded(e.key) ? 'table-secondary opacity-50' : ''">
+                  <td class="align-middle text-center">
+                    <input type="checkbox" class="form-check-input"
+                      :checked="!isExcluded(e.key)"
+                      @change="toggleExcluded(e.key)">
+                  </td>
+                  <td class="align-middle" x-text="e.name || ('Key ' + e.key)"></td>
+                  <td class="align-middle">
+                    <span class="badge bg-secondary" x-text="e.kind"></span>
+                  </td>
+                  <td class="align-middle text-center">
+                    <input type="radio" class="form-check-input"
+                      x-model.number="mainEntityKey"
+                      :value="e.key"
+                      :disabled="isExcluded(e.key)">
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Light config -->
+        <div x-show="hasLightEntities" class="mb-3">
+          <h6 class="small fw-semibold mb-2">Light Configuration</h6>
+          <div class="row g-2">
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Cool White (mireds)</label>
+              <input type="number" class="form-control form-control-sm"
+                x-model.number="deviceForm.lightConfig.coolWhite" placeholder="140">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Warm White (mireds)</label>
+              <input type="number" class="form-control form-control-sm"
+                x-model.number="deviceForm.lightConfig.warmWhite" placeholder="500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary btn-sm" @click="saveDevice()">Save Device</button>
+          <button class="btn btn-outline-secondary btn-sm" @click="configuringDevice = null; editingDeviceIndex = null;">Cancel</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
 
   <!-- ── Homebridge Service Mapping ──────────────────────────────────────── -->
   <div class="card">

@@ -87,6 +87,12 @@
               "type": "integer",
               "default": 0
             },
+            "excludedKeys": {
+              "title": "Excluded Entity Keys",
+              "description": "Managed by the custom UI. Entity keys excluded from Homebridge.",
+              "type": "array",
+              "items": { "type": "integer" }
+            },
             "lightConfig": {
               "title": "Light Config",
               "type": "object",

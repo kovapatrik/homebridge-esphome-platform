@@ -24,6 +24,7 @@ export type DeviceConfig = {
   psk?: string;
   password?: string;
   mainEntityKey: number;
+  excludedKeys?: number[];
   lightConfig: LightConfig;
 };
 

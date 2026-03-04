@@ -1,6 +1,7 @@
 import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils';
 import { HapClient } from '@homebridge/hap-client';
 import { defaultConfig, defaultDeviceConfig } from '../dist/platformUtils.js';
+import { discover, Manager } from '@kovapatrik/esphomeapi-manager';
 
 class UiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -35,6 +36,45 @@ class UiServer extends HomebridgePluginUiServer {
       } catch (e) {
         const msg = e instanceof Error ? e.stack : String(e);
         throw new RequestError(`HAP service discovery failed:\n${msg}`);
+      }
+    });
+
+    this.onRequest('/discoverEsphomeDevices', async ({ timeout = 5 } = {}) => {
+      try {
+        const found = await discover(timeout);
+        return found.map(d => ({
+          serverName: d.server,
+          address: d.addresses?.[0] ?? d.server,
+          port: d.port,
+        }));
+      } catch (e) {
+        throw new RequestError(`ESPHome discovery failed: ${e instanceof Error ? e.message : e}`);
+      }
+    });
+
+    this.onRequest('/getEsphomeEntities', async ({ address, port, psk, password }) => {
+      let manager;
+      try {
+        manager = await Manager.connect({
+          address,
+          port: port ?? 6053,
+          psk: psk || undefined,
+          password: password || undefined,
+        });
+        const info = manager.getDeviceInfo();
+        const entities = manager.getEntities().map(e => ({
+          key: e.key,
+          name: e.name,
+          kind: e.kind,
+        }));
+        return {
+          info: { name: info.name, model: info.model, manufacturer: info.manufacturer },
+          entities,
+        };
+      } catch (e) {
+        throw new RequestError(`Failed to connect: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        manager?.disconnect?.();
       }
     });
 
