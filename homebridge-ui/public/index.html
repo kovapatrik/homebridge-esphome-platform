@@ -105,7 +105,7 @@
             changes.homebridgeEvents.serviceMap = this.serviceMap;
           }
           // Devices are fully managed by the wizard — always override the schema form's snapshot
-          changes.devices = this.devices;
+          changes.devices = Alpine.raw(this.devices);
           await homebridge.updatePluginConfig([changes]);
         });
       },
@@ -388,7 +388,7 @@
 
       async _persistDevices() {
         const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
-        currentConfig.devices = this.devices;
+        currentConfig.devices = Alpine.raw(this.devices);
         await homebridge.updatePluginConfig([currentConfig]);
         await homebridge.savePluginConfig();
       },
