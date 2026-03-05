@@ -11,31 +11,38 @@ class UiServer extends HomebridgePluginUiServer {
       return { defaultConfig, defaultDeviceConfig };
     });
 
-    this.onRequest('/discoverHapServices', async ({ pin, timeout }) => {
+    this.onRequest('/discoverHapServices', async ({ pin, timeout = 10000 }) => {
+      let hapClient;
+      let timer;
       try {
-        const hapClient = new HapClient({
+        hapClient = new HapClient({
           pin,
           config: { debug: false, discoveryTimeout: timeout },
           logger: this.logger,
         });
 
         const services = await new Promise((resolve, reject) => {
-          // Fallback: if discovery-ended never fires, retrieve whatever is available
-          hapClient.on('discovery-ended', async () => {
-            clearTimeout(timeout);
+          const finish = async () => {
+            clearTimeout(timer);
             try {
-              const allServices = await hapClient.getAllServices();
-              resolve(allServices || []);
+              resolve((await hapClient.getAllServices()) || []);
             } catch (err) {
               reject(err);
             }
-          });
+          };
+
+          hapClient.on('discovery-ended', finish);
+          // Fallback: resolve with whatever was found if discovery-ended never fires
+          timer = setTimeout(finish, timeout);
         });
 
         return services;
       } catch (e) {
         const msg = e instanceof Error ? e.stack : String(e);
         throw new RequestError(`HAP service discovery failed:\n${msg}`);
+      } finally {
+        clearTimeout(timer);
+        hapClient?.destroy?.();
       }
     });
 

@@ -40,8 +40,8 @@
     "esphome"
   ],
   "dependencies": {
-    "@homebridge/hap-client": "^3.3.0",
-    "@homebridge/plugin-ui-utils": "^2.0.2",
+    "@homebridge/hap-client": "^3.4.0",
+    "@homebridge/plugin-ui-utils": "^2.2.1",
     "@kovapatrik/esphomeapi-manager": "^0.2.1-beta",
     "lodash": "^4.17.21"
   },
