@@ -368,7 +368,11 @@
               <!-- Service rows -->
               <template x-for="service in filteredServices" :key="service.uniqueId">
                 <tr>
-                  <td class="align-middle" x-text="service.serviceName ?? service.type ?? '—'"></td>
+                  <td class="align-middle">
+                    <span x-text="service.serviceName ?? service.type ?? '—'"></span>
+                    <small x-show="service.values?.ConfiguredName" class="d-block text-muted"
+                      x-text="service.values?.ConfiguredName"></small>
+                  </td>
                   <td class="align-middle text-nowrap">
                     <span class="badge bg-secondary" x-text="service.humanType ?? service.type ?? '—'"></span>
                   </td>

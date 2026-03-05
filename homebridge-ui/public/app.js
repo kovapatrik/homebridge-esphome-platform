@@ -102,7 +102,7 @@ function createAppData() {
         // Preserve serviceMap — the schema form does not include it
         if (this.serviceMap.length) {
           changes['homebridgeEvents'] = changes['homebridgeEvents'] ?? {};
-          changes['homebridgeEvents']['serviceMap'] = this.serviceMap;
+          changes['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
         }
         // Devices are fully managed by the wizard — always override the schema form's snapshot
         changes['devices'] = Alpine.raw(this.devices);
@@ -237,7 +237,7 @@ function createAppData() {
       const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
       currentConfig['homebridgeEvents'] = currentConfig['homebridgeEvents'] ?? {};
       currentConfig['homebridgeEvents']['pin'] = pin;
-      if (this.serviceMap.length) currentConfig['homebridgeEvents']['serviceMap'] = this.serviceMap;
+      if (this.serviceMap.length) currentConfig['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
       await homebridge.updatePluginConfig([currentConfig]);
       await homebridge.savePluginConfig();
     },
@@ -246,7 +246,7 @@ function createAppData() {
       try {
         const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
         currentConfig['homebridgeEvents'] = currentConfig['homebridgeEvents'] ?? {};
-        currentConfig['homebridgeEvents']['serviceMap'] = this.serviceMap;
+        currentConfig['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
         await homebridge.updatePluginConfig([currentConfig]);
         await homebridge.savePluginConfig();
       } catch (e) {
