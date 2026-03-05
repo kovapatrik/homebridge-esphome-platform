@@ -35,17 +35,9 @@
           },
           "serviceMap": {
             "title": "Service Map",
-            "description": "Managed by the custom UI. Maps dot-notation keys to Homebridge HAP services.",
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": { "title": "Key", "type": "string" },
-                "uniqueId": { "title": "Unique ID", "type": "string" },
-                "stableId": { "title": "Stable ID", "type": "string" }
-              },
-              "required": ["key", "uniqueId", "stableId"]
-            }
+            "description": "Managed by the custom UI. Maps service IDs to dot-notation keys.",
+            "type": "object",
+            "additionalProperties": { "type": "string" }
           }
         }
       },

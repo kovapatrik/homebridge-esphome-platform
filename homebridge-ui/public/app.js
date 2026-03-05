@@ -3,7 +3,7 @@ function createAppData() {
     // ── Config ────────────────────────────────────────────────────────────────
     pin: '',
     savedPin: '',
-    serviceMap: [],
+    serviceMap: {},
 
     // ── HAP Discovery ─────────────────────────────────────────────────────────
     showServiceMapping: false,
@@ -69,6 +69,10 @@ function createAppData() {
     get pinChanged() {
       return this.pin.trim() !== this.savedPin;
     },
+    get serviceMappingEntries() {
+      return Object.entries(this.serviceMap);
+    },
+
     get hasLightEntities() {
       return this.deviceEntities.some((e) => e.kind === 'Light');
     },
@@ -87,7 +91,7 @@ function createAppData() {
 
       this.devices = (configuration?.devices ?? []).slice();
       this.hapEnabled = configuration?.homebridgeEvents?.enabled ?? false;
-      this.serviceMap = (configuration?.homebridgeEvents?.serviceMap ?? []).slice();
+      this.serviceMap = { ...(configuration?.homebridgeEvents?.serviceMap ?? {}) };
       this.pin = configuration?.homebridgeEvents?.pin ?? '';
       this.savedPin = this.pin;
 
@@ -105,7 +109,7 @@ function createAppData() {
         const hap = {
           ...(this.hapEnabled && { enabled: true }),
           ...(this.pin && { pin: this.pin }),
-          ...(this.serviceMap.length && { serviceMap: Alpine.raw(this.serviceMap) }),
+          ...(Object.keys(this.serviceMap).length && { serviceMap: Alpine.raw(this.serviceMap) }),
         };
         if (Object.keys(hap).length) changes['homebridgeEvents'] = hap;
         else delete changes['homebridgeEvents'];
@@ -165,8 +169,7 @@ function createAppData() {
         // Initialise per-row key inputs from current mappings
         this.rowKeys = {};
         for (const s of this.discoveredServices) {
-          const m = this.serviceMap.find((m) => m.uniqueId === s.uniqueId);
-          this.rowKeys[s.uniqueId] = m?.key ?? '';
+          this.rowKeys[s.nameBasedUniqueId] = this.serviceMap[s.nameBasedUniqueId] ?? '';
         }
 
         const n = this.discoveredServices.length;
@@ -182,8 +185,8 @@ function createAppData() {
     },
 
     // ── Mapping helpers ───────────────────────────────────────────────────────
-    isMapped(uniqueId) {
-      return this.serviceMap.some((m) => m.uniqueId === uniqueId);
+    isMapped(id) {
+      return id in this.serviceMap;
     },
 
     isKeyValid(uniqueId) {
@@ -198,40 +201,22 @@ function createAppData() {
 
     // ── Map / Remove ──────────────────────────────────────────────────────────
     async mapService(service) {
-      const key = (this.rowKeys[service.uniqueId] ?? '').trim();
+      const key = (this.rowKeys[service.nameBasedUniqueId] ?? '').trim();
 
-      if (this.serviceMap.some((m) => m.key === key && m.uniqueId !== service.uniqueId)) {
+      if (Object.entries(this.serviceMap).some(([id, k]) => k === key && id !== service.nameBasedUniqueId)) {
         homebridge.toast.error(`Key "${key}" is already used.`);
         return;
       }
 
-      const friendlyName = service.serviceName ?? '';
-      this.serviceMap = this.serviceMap.filter((m) => m.uniqueId !== service.uniqueId);
-      this.serviceMap.push({
-        key,
-        uniqueId: service.uniqueId,
-        stableId: [
-          service.instance?.name ?? '',
-          service.instance?.username ?? '',
-          service.accessoryInformation?.Manufacturer ?? '',
-          friendlyName,
-          (service.uuid ?? '').slice(0, 8),
-        ].join(''),
-      });
+      this.serviceMap[service.nameBasedUniqueId] = key;
 
       await this._persist();
       homebridge.toast.success(`Mapped as "${key}".`);
     },
 
-    async removeByIndex(i) {
-      this.serviceMap.splice(i, 1);
-      await this._persist();
-      homebridge.toast.success('Mapping removed.');
-    },
-
-    async removeByUniqueId(uniqueId) {
-      this.rowKeys[uniqueId] = '';
-      this.serviceMap = this.serviceMap.filter((m) => m.uniqueId !== uniqueId);
+    async removeById(id) {
+      this.rowKeys[id] = '';
+      delete this.serviceMap[id];
       await this._persist();
       homebridge.toast.success('Mapping removed.');
     },
@@ -241,7 +226,7 @@ function createAppData() {
       return {
         ...(this.hapEnabled && { enabled: true }),
         ...(this.pin && { pin: this.pin }),
-        ...(this.serviceMap.length && { serviceMap: Alpine.raw(this.serviceMap) }),
+        ...(Object.keys(this.serviceMap).length && { serviceMap: Alpine.raw(this.serviceMap) }),
       };
     },
 

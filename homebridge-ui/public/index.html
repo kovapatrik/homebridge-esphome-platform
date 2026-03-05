@@ -273,25 +273,25 @@
       <!-- Current Mappings -->
       <h6 class="border-bottom pb-2 mb-3">Current Mappings</h6>
 
-      <p x-show="serviceMap.length === 0" class="text-muted small">No mappings configured.</p>
+      <p x-show="!serviceMappingEntries.length" class="text-muted small">No mappings configured.</p>
 
-      <table x-show="serviceMap.length > 0" class="table table-sm mb-4">
+      <table x-show="serviceMappingEntries.length > 0" class="table table-sm mb-4">
         <thead class="table-secondary">
           <tr>
             <th>Key</th>
-            <th>Unique ID</th>
+            <th>ID</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <template x-for="(m, i) in serviceMap" :key="m.uniqueId">
+          <template x-for="entry in serviceMappingEntries" :key="entry[0]">
             <tr>
-              <td class="align-middle"><code x-text="m.key"></code></td>
+              <td class="align-middle"><code x-text="entry[1]"></code></td>
               <td class="align-middle">
-                <small class="text-muted font-monospace" x-text="m.uniqueId.slice(0, 16) + '…'"></small>
+                <small class="text-muted font-monospace" x-text="entry[0].slice(0, 16) + '…'"></small>
               </td>
               <td class="align-middle text-end">
-                <button class="btn btn-outline-danger btn-sm" @click="removeByIndex(i)">Remove</button>
+                <button class="btn btn-outline-danger btn-sm" @click="removeById(entry[0])">Remove</button>
               </td>
             </tr>
           </template>
@@ -319,7 +319,7 @@
         </div>
       </div>
 
-      <div x-show="pinChanged && serviceMap.length > 0"
+      <div x-show="pinChanged && serviceMappingEntries.length > 0"
            class="alert alert-warning small py-2 mt-2">
         Discovering with a new PIN will update the plugin configuration.
         If you are connecting to a <strong>different bridge</strong>,
@@ -372,7 +372,7 @@
                 <td colspan="4" class="text-center text-muted py-3" x-text="noResultsMessage"></td>
               </tr>
               <!-- Service rows -->
-              <template x-for="service in filteredServices" :key="service.uniqueId">
+              <template x-for="service in filteredServices" :key="service.nameBasedUniqueId">
                 <tr>
                   <td class="align-middle">
                     <span x-text="service.serviceName ?? service.type ?? '—'"></span>
@@ -384,20 +384,20 @@
                   </td>
                   <td class="align-middle">
                     <input type="text" autocomplete="off" :spellcheck="false"
-                      :class="keyClass(service.uniqueId)"
+                      :class="keyClass(service.nameBasedUniqueId)"
                       placeholder="e.g. living_room.light"
-                      :value="rowKeys[service.uniqueId] ?? ''"
-                      @input="rowKeys[service.uniqueId] = $event.target.value">
+                      :value="rowKeys[service.nameBasedUniqueId] ?? ''"
+                      @input="rowKeys[service.nameBasedUniqueId] = $event.target.value">
                   </td>
                   <td class="align-middle text-end text-nowrap">
-                    <button x-show="isMapped(service.uniqueId)"
+                    <button x-show="isMapped(service.nameBasedUniqueId)"
                       class="btn btn-outline-danger btn-sm"
-                      @click="removeByUniqueId(service.uniqueId)">
+                      @click="removeById(service.nameBasedUniqueId)">
                       Remove
                     </button>
-                    <button x-show="!isMapped(service.uniqueId)"
+                    <button x-show="!isMapped(service.nameBasedUniqueId)"
                       class="btn btn-primary btn-sm"
-                      :disabled="!isKeyValid(service.uniqueId)"
+                      :disabled="!isKeyValid(service.nameBasedUniqueId)"
                       @click="mapService(service)">
                       Map
                     </button>
