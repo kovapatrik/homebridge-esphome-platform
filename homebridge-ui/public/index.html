@@ -259,10 +259,16 @@
     </div>
     <div class="card-body">
 
-      <p class="text-muted small mb-4">
+      <p class="text-muted small mb-3">
         Assign dot-notation keys (e.g., <code>living_room.light</code>) to Homebridge services.
         These mappings let ESPHome device events target specific Homebridge accessories.
       </p>
+
+      <div class="form-check form-switch mb-4">
+        <input class="form-check-input" type="checkbox" id="hapEnabled" x-model="hapEnabled"
+          @change="_persist()">
+        <label class="form-check-label small" for="hapEnabled">Enable Homebridge Events</label>
+      </div>
 
       <!-- Current Mappings -->
       <h6 class="border-bottom pb-2 mb-3">Current Mappings</h6>

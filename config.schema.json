@@ -117,11 +117,6 @@
   },
   "form": [
     "verbose",
-    "uiDebug",
-    {
-      "key": "homebridgeEvents",
-      "items": ["homebridgeEvents.enabled"]
-    },
-    "devices"
+    "uiDebug"
   ]
 }

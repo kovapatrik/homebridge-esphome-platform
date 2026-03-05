@@ -8,6 +8,7 @@ function createAppData() {
     // ── HAP Discovery ─────────────────────────────────────────────────────────
     showServiceMapping: false,
     showEsphomeDiscovery: false,
+    hapEnabled: false,
     discoveredServices: [],
     discoverStatus: '',
     isDiscovering: false,
@@ -34,7 +35,7 @@ function createAppData() {
     // ── Device config panel ───────────────────────────────────────────────────
     configuringDevice: null,
     editingDeviceIndex: null,
-    deviceForm: {},
+    deviceForm: { serverName: '', port: 0, ip: '', psk: '', password: '', lightConfig: { coolWhite: 0, warmWhite: 0 } },
     /** UI-only — never written to config. */
     authMode: 'none',
     /** UI-only — never written to config. */
@@ -85,6 +86,7 @@ function createAppData() {
       const configuration = pluginConfig.length ? pluginConfig[0] : {};
 
       this.devices = (configuration?.devices ?? []).slice();
+      this.hapEnabled = configuration?.homebridgeEvents?.enabled ?? false;
       this.serviceMap = (configuration?.homebridgeEvents?.serviceMap ?? []).slice();
       this.pin = configuration?.homebridgeEvents?.pin ?? '';
       this.savedPin = this.pin;
@@ -99,12 +101,14 @@ function createAppData() {
       const form = homebridge.createForm(schema, config);
       form.onChange(async (changes) => {
         changes = this._filterOutDefaults(changes, this._defaultConfig);
-        // Preserve serviceMap — the schema form does not include it
-        if (this.serviceMap.length) {
-          changes['homebridgeEvents'] = changes['homebridgeEvents'] ?? {};
-          changes['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
-        }
-        // Devices are fully managed by the wizard — always override the schema form's snapshot
+        // homebridgeEvents and devices are fully managed by the custom UI
+        const hap = {
+          ...(this.hapEnabled && { enabled: true }),
+          ...(this.pin && { pin: this.pin }),
+          ...(this.serviceMap.length && { serviceMap: Alpine.raw(this.serviceMap) }),
+        };
+        if (Object.keys(hap).length) changes['homebridgeEvents'] = hap;
+        else delete changes['homebridgeEvents'];
         changes['devices'] = Alpine.raw(this.devices);
         await homebridge.updatePluginConfig([changes]);
       });
@@ -233,11 +237,17 @@ function createAppData() {
     },
 
     // ── Persist ───────────────────────────────────────────────────────────────
+    async _buildHapEvents() {
+      return {
+        ...(this.hapEnabled && { enabled: true }),
+        ...(this.pin && { pin: this.pin }),
+        ...(this.serviceMap.length && { serviceMap: Alpine.raw(this.serviceMap) }),
+      };
+    },
+
     async _persistPin(pin) {
       const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
-      currentConfig['homebridgeEvents'] = currentConfig['homebridgeEvents'] ?? {};
-      currentConfig['homebridgeEvents']['pin'] = pin;
-      if (this.serviceMap.length) currentConfig['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
+      currentConfig['homebridgeEvents'] = { ...await this._buildHapEvents(), pin };
       await homebridge.updatePluginConfig([currentConfig]);
       await homebridge.savePluginConfig();
     },
@@ -245,8 +255,9 @@ function createAppData() {
     async _persist() {
       try {
         const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
-        currentConfig['homebridgeEvents'] = currentConfig['homebridgeEvents'] ?? {};
-        currentConfig['homebridgeEvents']['serviceMap'] = Alpine.raw(this.serviceMap);
+        const hap = await this._buildHapEvents();
+        if (Object.keys(hap).length) currentConfig['homebridgeEvents'] = hap;
+        else delete currentConfig['homebridgeEvents'];
         await homebridge.updatePluginConfig([currentConfig]);
         await homebridge.savePluginConfig();
       } catch (e) {
