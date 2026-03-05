@@ -16,6 +16,9 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
   public readonly discoveredCacheUUIDs: string[] = [];
 
+  /** Latest known state for each mapped service, keyed by dot-notation key. */
+  public readonly states: Map<string, { uuid: string; characteristics: ServiceType['serviceCharacteristics'] }> = new Map();
+
   private readonly platformConfig: Config;
   private readonly hapClient?: HapClient;
   private hapMonitor?: HapMonitor;
@@ -68,8 +71,9 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
       update.forEach((service) => {
         if (service.nameBasedUniqueId && service.nameBasedUniqueId in this.platformConfig.homebridgeEvents.serviceMap) {
           const key = this.platformConfig.homebridgeEvents.serviceMap[service.nameBasedUniqueId];
+          this.states.set(key, { uuid: service.uuid, characteristics: service.serviceCharacteristics });
           this.log.debug(`Service ${service.nameBasedUniqueId} updated: ${key}`);
-          this.emit(key, service.values);
+          this.emit('hap-event', key, service.uuid, service.serviceCharacteristics);
         }
       });
     });

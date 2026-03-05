@@ -1,9 +1,11 @@
 import EventEmitter from 'node:events';
 import { type HomeAssistantEvent, HomeAssistantEventKind, type Manager } from '@kovapatrik/esphomeapi-manager';
+import type { CharacteristicType } from '@homebridge/hap-client';
 import type { PlatformAccessory } from 'homebridge';
 import EntityFactory from './entity/EntityFactory.js';
 import type { EsphomePlatform } from './platform.js';
 import type { DeviceConfig } from './platformUtils.js';
+import { characteristicUUIDByAttribute, defaultCharacteristicByServiceUUID } from './hapDefaults.js';
 
 export default class EsphomeAccessory extends EventEmitter {
   private constructor(
@@ -28,12 +30,48 @@ export default class EsphomeAccessory extends EventEmitter {
         EntityFactory.createEntity(entity, platform, accessory, deviceConfig);
       }
     }
+
+    this.platform.on('hap-event', this.handleHapEvents.bind(this));
   }
 
-  private async handleHomeAssistantState(event: HomeAssistantEvent) {
+  /** entity_id → attribute (undefined = default characteristic) */
+  private readonly subscriptions = new Map<string, string | undefined>();
+
+  private async handleHapEvents(key: string, serviceUUID: string, characteristics: CharacteristicType[]): Promise<void> {
+    if (!this.subscriptions.has(key)) return;
+    await this._sendState(key, this.subscriptions.get(key), serviceUUID, characteristics);
+  }
+
+  private async handleHomeAssistantState(event: HomeAssistantEvent): Promise<void> {
     if (event.eventType === HomeAssistantEventKind.StateSubscription) {
-      this.on(event.entityId, async (newState) => {});
+      this.subscriptions.set(event.entityId, event.attribute);
     }
+
+    const current = this.platform.states.get(event.entityId);
+    if (current) {
+      await this._sendState(event.entityId, event.attribute, current.uuid, current.characteristics);
+    }
+  }
+
+  private getCharacteristic(attribute: string | undefined, serviceUUID: string, characteristics: CharacteristicType[]): CharacteristicType {
+    const uuid = (attribute && characteristicUUIDByAttribute[attribute]) || defaultCharacteristicByServiceUUID[serviceUUID];
+    const characteristic = characteristics.find(c => c.uuid === uuid);
+    if (characteristic) {
+      return characteristic;
+    }
+    throw new Error(`No characteristic found for attribute ${attribute} and service UUID ${serviceUUID}`);
+  }
+
+  private async _sendState(entityId: string, attribute: string | undefined, serviceUUID: string, characteristics: CharacteristicType[]): Promise<void> {
+    const characteristic = this.getCharacteristic(attribute, serviceUUID, characteristics);
+
+    if (characteristic?.value === null || characteristic?.value === undefined) return;
+
+    const state = typeof characteristic.value === 'boolean'
+      ? (characteristic.value ? 'on' : 'off')
+      : String(characteristic.value);
+
+    await this.manager.sendHomeAssistantState(entityId, state, attribute);
   }
 
   private async subscribeToEvents(): Promise<void> {
@@ -42,6 +80,7 @@ export default class EsphomeAccessory extends EventEmitter {
 
   static async create(platform: EsphomePlatform, accessory: PlatformAccessory, manager: Manager, deviceConfig: DeviceConfig): Promise<EsphomeAccessory> {
     const instance = new EsphomeAccessory(platform, accessory, manager, deviceConfig);
+    await instance.subscribeToEvents();
     return instance;
   }
 }
