@@ -64,13 +64,15 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
 
   async monitorHomebridgeDevices() {
     this.hapMonitor = await this.hapClient?.monitorCharacteristics();
-    this.hapMonitor?.on('service-update', (update: ServiceType) => {
-      if (update.nameBasedUniqueId && update.nameBasedUniqueId in this.platformConfig.homebridgeEvents.serviceMap) {
-        const key = this.platformConfig.homebridgeEvents.serviceMap[update.nameBasedUniqueId];
-        this.log.debug(`Service ${update.nameBasedUniqueId} updated: ${key}`);
-        this.emit(key, update.values);
-      }
-    })
+    this.hapMonitor?.on('service-update', (update: ServiceType[]) => {
+      update.forEach((service) => {
+        if (service.nameBasedUniqueId && service.nameBasedUniqueId in this.platformConfig.homebridgeEvents.serviceMap) {
+          const key = this.platformConfig.homebridgeEvents.serviceMap[service.nameBasedUniqueId];
+          this.log.debug(`Service ${service.nameBasedUniqueId} updated: ${key}`);
+          this.emit(key, service.values);
+        }
+      });
+    });
   }
 
   async discoverDevices() {
