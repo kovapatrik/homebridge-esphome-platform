@@ -1,4 +1,5 @@
-import { HapClient, ServiceType } from '@homebridge/hap-client';
+import EventEmitter from 'node:events';
+import { HapClient, type ServiceType } from '@homebridge/hap-client';
 import type { HapMonitor } from '@homebridge/hap-client/dist/monitor.js';
 import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
@@ -6,9 +7,8 @@ import defaultsDeep from 'lodash/defaultsDeep.js';
 import EsphomeAccessory from './platformAccesory.js';
 import { type Config, defaultConfig, defaultDeviceConfig } from './platformUtils.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-import EventEmitter from 'node:events';
 
-export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlugin  {
+export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
 
@@ -50,7 +50,7 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
       });
       this.hapClient.on('discovery-ended', () => {
         this.monitorHomebridgeDevices();
-      })
+      });
     }
 
     this.api.on('didFinishLaunching', async () => {
@@ -68,14 +68,14 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
   async monitorHomebridgeDevices() {
     this.hapMonitor = await this.hapClient?.monitorCharacteristics();
     this.hapMonitor?.on('service-update', (update: ServiceType[]) => {
-      update.forEach((service) => {
+      for (const service of update) {
         if (service.nameBasedUniqueId && service.nameBasedUniqueId in this.platformConfig.homebridgeEvents.serviceMap) {
           const key = this.platformConfig.homebridgeEvents.serviceMap[service.nameBasedUniqueId];
           this.states.set(key, { uuid: service.uuid, characteristics: service.serviceCharacteristics });
           this.log.debug(`Service ${service.nameBasedUniqueId} updated: ${key}`);
           this.emit('hap-event', key, service.uuid, service.serviceCharacteristics);
         }
-      });
+      }
     });
   }
 
