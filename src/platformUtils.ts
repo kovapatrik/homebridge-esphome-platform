@@ -12,6 +12,7 @@ export type HomebridgeEventsConfig = {
 };
 
 export type DeviceConfig = {
+  name: string,
   serverName: string;
   port?: number;
   ip?: string;
@@ -39,6 +40,7 @@ export const defaultConfig: Config = {
 };
 
 export const defaultDeviceConfig: DeviceConfig = {
+  name: '',
   serverName: '',
   port: 6053,
   mainEntityKey: 0,

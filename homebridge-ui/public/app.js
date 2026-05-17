@@ -291,6 +291,7 @@ function createAppData() {
       if (deviceIndex !== null) {
         const d = this.devices[deviceIndex];
         this.deviceForm = {
+          name: d.name,
           serverName: d.serverName,
           port: d.port ?? def.port,
           ip: d.ip ?? '',
@@ -304,6 +305,7 @@ function createAppData() {
         this.mainEntityKey = d.mainEntityKey ?? null;
       } else {
         this.deviceForm = {
+          name: source.friendlyName ?? '',
           serverName: source.serverName ?? '',
           port: def.port,
           ip: source.address ?? '',

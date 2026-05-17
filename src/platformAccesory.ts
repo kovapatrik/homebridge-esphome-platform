@@ -1,11 +1,11 @@
 import EventEmitter from 'node:events';
-import { type HomeAssistantEvent, HomeAssistantEventKind, type Manager } from '@kovapatrik/esphomeapi-manager';
 import type { CharacteristicType } from '@homebridge/hap-client';
+import { type HomeAssistantEvent, HomeAssistantEventKind, type Manager } from '@kovapatrik/esphomeapi-manager';
 import type { PlatformAccessory } from 'homebridge';
 import EntityFactory from './entity/EntityFactory.js';
+import { characteristicUUIDByAttribute, defaultCharacteristicByServiceUUID } from './hapDefaults.js';
 import type { EsphomePlatform } from './platform.js';
 import type { DeviceConfig } from './platformUtils.js';
-import { characteristicUUIDByAttribute, defaultCharacteristicByServiceUUID } from './hapDefaults.js';
 
 export default class EsphomeAccessory extends EventEmitter {
   private constructor(
@@ -55,7 +55,7 @@ export default class EsphomeAccessory extends EventEmitter {
 
   private getCharacteristic(attribute: string | undefined, serviceUUID: string, characteristics: CharacteristicType[]): CharacteristicType {
     const uuid = (attribute && characteristicUUIDByAttribute[attribute]) || defaultCharacteristicByServiceUUID[serviceUUID];
-    const characteristic = characteristics.find(c => c.uuid === uuid);
+    const characteristic = characteristics.find((c) => c.uuid === uuid);
     if (characteristic) {
       return characteristic;
     }
@@ -67,9 +67,7 @@ export default class EsphomeAccessory extends EventEmitter {
 
     if (characteristic?.value === null || characteristic?.value === undefined) return;
 
-    const state = typeof characteristic.value === 'boolean'
-      ? (characteristic.value ? 'on' : 'off')
-      : String(characteristic.value);
+    const state = typeof characteristic.value === 'boolean' ? (characteristic.value ? 'on' : 'off') : String(characteristic.value);
 
     await this.manager.sendHomeAssistantState(entityId, state, attribute);
   }

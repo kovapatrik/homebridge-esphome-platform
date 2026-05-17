@@ -50,6 +50,7 @@ class UiServer extends HomebridgePluginUiServer {
       try {
         const found = await discover(timeout);
         return found.map(d => ({
+          friendlyName: d.friendlyName,
           serverName: d.server,
           address: d.addresses?.[0] ?? d.server,
           port: d.port,
@@ -75,7 +76,7 @@ class UiServer extends HomebridgePluginUiServer {
           kind: e.kind,
         }));
         return {
-          info: { name: info.name, model: info.model, manufacturer: info.manufacturer },
+          info: { name: info.name, model: info.model, manufacturer: info.manufacturer, friendlyName: info.friendlyName },
           entities,
         };
       } catch (e) {
