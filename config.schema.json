@@ -47,6 +47,11 @@
         "items": {
           "type": "object",
           "properties": {
+            "name": {
+              "title": "Name",
+              "description": "Display name of the device",
+              "type": "string"
+            },
             "serverName": {
               "title": "Server Name",
               "description": "mDNS hostname or IP address of the ESPHome device",

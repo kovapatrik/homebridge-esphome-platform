@@ -359,6 +359,10 @@ function createAppData() {
         homebridge.toast.error('Server name is required.');
         return;
       }
+      if (!this.deviceForm.name.trim()) {
+        homebridge.toast.error('Name is required.');
+        return;
+      }
       if (this.mainEntityKey === null) {
         homebridge.toast.error(
           this.deviceEntities.length
@@ -369,7 +373,8 @@ function createAppData() {
       }
       // Preserve lightConfig when editing without reloading entities
       const existingHasLight = this.editingDeviceIndex !== null && !!this.devices[this.editingDeviceIndex]?.lightConfig;
-      const cfg = {
+        const cfg = {
+        name: this.deviceForm.name.trim(),
         serverName: this.deviceForm.serverName.trim(),
         ...(this.deviceForm.port !== this._defaultDeviceConfig.port && { port: this.deviceForm.port }),
         ...(this.useStaticIp && this.deviceForm.ip && { ip: this.deviceForm.ip }),

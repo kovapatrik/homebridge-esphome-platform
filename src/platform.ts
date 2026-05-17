@@ -5,7 +5,7 @@ import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 import defaultsDeep from 'lodash/defaultsDeep.js';
 import EsphomeAccessory from './platformAccesory.js';
-import { type Config, defaultConfig, defaultDeviceConfig } from './platformUtils.js';
+import { type Config, defaultConfig, defaultDeviceConfig, type DeviceConfig } from './platformUtils.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
 export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlugin {
@@ -83,7 +83,7 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
     const discoveredDevices = await discover(5);
 
     for (const _device of this.platformConfig.devices) {
-      const device = defaultsDeep(_device, defaultDeviceConfig);
+      const device = defaultsDeep(_device, defaultDeviceConfig) as DeviceConfig;
 
       const serviceInfo = discoveredDevices.find((d) => d.server === device.serverName);
       if (!serviceInfo) {
@@ -110,8 +110,8 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
         continue;
       }
 
-      this.log.info('Adding new accessory:', device.serverName);
-      const accessory = new this.api.platformAccessory(device.serverName, uuid);
+      this.log.info('Adding new accessory:', device.name);
+      const accessory = new this.api.platformAccessory(device.name, uuid);
 
       await EsphomeAccessory.create(this, accessory, manager, device);
 

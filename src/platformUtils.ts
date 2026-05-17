@@ -14,7 +14,7 @@ export type HomebridgeEventsConfig = {
 export type DeviceConfig = {
   name: string,
   serverName: string;
-  port?: number;
+  port: number;
   ip?: string;
   psk?: string;
   password?: string;

@@ -62,9 +62,9 @@
                 <tr>
                   <td class="align-middle">
                     <span x-text="device.serverName"></span>
-                    <span x-text="device.friendlyName"></span>
                     <span x-show="isConfigured(device.serverName)" class="badge bg-success ms-2">Configured</span>
                   </td>
+                  <td class="align-middle" x-text="device.friendlyName"></td>
                   <td class="align-middle text-muted small font-monospace" x-text="device.address"></td>
                   <td class="align-middle" x-text="device.port"></td>
                   <td class="align-middle text-end">
