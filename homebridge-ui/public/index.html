@@ -1,438 +1,426 @@
-<!--*********************************************************************
- * Midea Homebridge platform Custom UI client-side script
- *
- * Copyright (c) 2023 Kovalovszky Patrik, https://github.com/kovapatrik
- * Copyright (c) 2023 David Kerr, https://github.com/dkerr64
- *
- * Based on https://github.com/homebridge/plugin-ui-utils
- *
- *-->
-<link href="css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
-<script src="js/bootstrap.min.js" crossorigin="anonymous"></script>
+<script src="app.js"></script>
 
-<div id="main" data-bs-theme="dark">
-  <div class="card">
+<script defer src="js/alpine.min.js"></script>
 
-    <div class="card-header" id="uiButtons">
-      <h5 class="mb-0 text-center">
-        <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#discoverDevices"
-          aria-expanded="false" aria-controls="discoverDevices" style="border: 0;">
-          Discover devices
-        </button>
-      </h5>
+<style>
+  [x-cloak] { display: none !important; }
+  code { color: var(--bs-code-color, #e685b5); }
+  .font-monospace { font-family: var(--bs-font-monospace, monospace) !important; }
+  .key-valid {
+    border-color: var(--bs-success) !important;
+    box-shadow: 0 0 0 0.1rem rgba(var(--bs-success-rgb), 0.25) !important;
+  }
+  .key-invalid {
+    border-color: var(--bs-danger) !important;
+    box-shadow: 0 0 0 0.1rem rgba(var(--bs-danger-rgb), 0.25) !important;
+  }
+</style>
+
+<div id="main" x-data="app" x-init="init()" x-cloak data-bs-theme="dark">
+
+  <!-- ── ESPHome Devices ─────────────────────────────────────────────────── -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <h5 class="mb-0">ESPHome Devices</h5>
     </div>
+    <div class="card-body">
 
-    <div class="collapse" id="discoverDevices">
-      <div class="card-body">
-        <form>
-          <div class="mb-3 bg-info-subtle border-info-subtle p-3 rounded-2">
-            You can discover your devices without providing credentials. However, if you see <i>No Credentials</i> in
-            the
-            Add/Update column then you must provide login credentials or use the default profile option so the
-            <i>token/key</i> pair can be retrieved
-            from Midea cloud servers.<br/>
-            <i>Note: you don't have to have your devices connected to the account you are using to fetch the token/key pair.</i>
-          </div>
-          <div class="mb-3 form-check form-switch">
-            <input id="useDefaultProfile" type="checkbox" class="form-check-input" role="switch">
-            <label for="useDefaultProfile" class="form-check-label">Use default NetHome Plus profile</label>
-          </div>
-          <div class="mb-3" id="login">
-              <div class="mb-3 bg-warning-subtle border-warning-subtle p-3 rounded-2">
-                  Midea disabled the token fetching APIs in both Meiju and Midea SmartHome, and now it's only available using the NetHome Plus API.
-                  It's expected that the token fetching in NetHome Plus API will be disabled as well. Make sure you save your devices' token and key to be able to usem them in the future.
-                  From now, it's only available to login using NetHome Plus accounts.
-              </div>
-            <div id="userPass">
-              <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username">
-              </div>
-              <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password">
-              </div>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label for="ip" class="form-label">IP Addresses (comma or space separated list for when devices are on
-              another LAN subnet)</label>
-            <input type="text" class="form-control" id="ip" placeholder="IP addresses (optional)">
-          </div>
-          <button class="btn btn-primary btn-login" type="submit" id="discoverBtn" style="border: 0;">
-            Discover All Devices
+      <p class="text-muted small mb-4">
+        Discover ESPHome devices on your network, inspect their entities, and configure which to expose to Homebridge.
+      </p>
+
+      <!-- Discover Devices -->
+      <h6 class="border-bottom pb-2 mb-3 d-flex justify-content-between align-items-center">
+        Discover Devices
+        <button class="btn btn-outline-secondary btn-sm" @click="showEsphomeDiscovery = !showEsphomeDiscovery"
+          x-text="showEsphomeDiscovery ? 'Hide' : 'Show'"></button>
+      </h6>
+
+      <div x-show="showEsphomeDiscovery">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <button class="btn btn-primary btn-sm" :disabled="isDiscoveringEsphome" @click="discoverEsphome()">
+            <span x-show="isDiscoveringEsphome" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            Discover Devices
           </button>
-        </form>
-        <div class="text-center device-table" style="display: none" id="discoverTableWrapper">
-          <div class="mb-3 bg-info-subtle border-info-subtle p-3 rounded-2">
-            If your device is not supported, you can download the Lua file (by clicking on the model number in the table)
-            which is used to control the device and attach it to a GitHub issue.
-          </div>
-          <table class="table table-sm" id="discoverTable">
-            <thead>
+          <small class="text-muted" x-text="esphomeDiscoverStatus"></small>
+          <button class="btn btn-outline-secondary btn-sm ms-auto" @click="openDeviceConfig()">+ Add Manually</button>
+        </div>
+
+        <div x-show="esphomeDiscovered.length > 0">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-secondary">
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Type</th>
-                <th scope="col">Model</th>
-                <th scope="col">Id</th>
-                <th scope="col">Ver.</th>
-                <th scope="col">Token&nbsp;/&nbsp;Key</th>
-                <th scope="col">Local&nbsp;Ip</th>
-                <th scope="col">Add&nbsp;/&nbsp;Update</th>
+                <th>Server Name</th>
+                <th>Friendly Name</th>
+                <th>Address</th>
+                <th>Port</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>No devices found!</td>
-              </tr>
+              <template x-for="device in esphomeDiscovered" :key="device.serverName">
+                <tr>
+                  <td class="align-middle">
+                    <span x-text="device.serverName"></span>
+                    <span x-show="isConfigured(device.serverName)" class="badge bg-success ms-2">Configured</span>
+                  </td>
+                  <td class="align-middle" x-text="device.friendlyName"></td>
+                  <td class="align-middle text-muted small font-monospace" x-text="device.address"></td>
+                  <td class="align-middle" x-text="device.port"></td>
+                  <td class="align-middle text-end">
+                    <button class="btn btn-sm"
+                      :class="isConfigured(device.serverName) ? 'btn-outline-secondary' : 'btn-primary'"
+                      @click="openDeviceConfig(device)"
+                      x-text="isConfigured(device.serverName) ? 'Edit' : 'Configure'"></button>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
       </div>
+
+      <!-- Device Config Panel -->
+      <div x-show="configuringDevice !== null" class="mt-4 border rounded p-3">
+
+        <h6 class="border-bottom pb-2 mb-3" x-text="editingDeviceIndex !== null ? 'Edit Device' : 'Configure Device'"></h6>
+
+        <!-- Connection fields -->
+        <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label small mb-1">Name<span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-sm" x-model="deviceForm.name"
+                placeholder="My Device">
+            </div>
+          <div class="col-sm-6">
+            <label class="form-label small mb-1">Server Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" x-model="deviceForm.serverName"
+              placeholder="mydevice.local">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small mb-1">Port</label>
+            <input type="number" class="form-control form-control-sm" x-model.number="deviceForm.port"
+              placeholder="6053">
+          </div>
+          <div class="col-sm-4 d-flex align-items-end pb-1">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="useStaticIp" x-model="useStaticIp">
+              <label class="form-check-label small" for="useStaticIp">Use static IP</label>
+            </div>
+          </div>
+          <div class="col-sm-4" x-show="useStaticIp">
+            <label class="form-label small mb-1">IP Address</label>
+            <input type="text" class="form-control form-control-sm font-monospace" x-model="deviceForm.ip"
+              placeholder="192.168.1.100">
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">Authentication</label>
+            <div class="btn-group btn-group-sm w-auto" role="group">
+              <input type="radio" class="btn-check" id="auth-none" x-model="authMode" value="none">
+              <label class="btn btn-outline-secondary" for="auth-none">None</label>
+              <input type="radio" class="btn-check" id="auth-psk" x-model="authMode" value="psk">
+              <label class="btn btn-outline-secondary" for="auth-psk">PSK</label>
+              <input type="radio" class="btn-check" id="auth-password" x-model="authMode" value="password">
+              <label class="btn btn-outline-secondary" for="auth-password">Password</label>
+            </div>
+          </div>
+          <div class="col-sm-8" x-show="authMode === 'psk'">
+            <label class="form-label small mb-1">PSK (Noise Encryption Key)</label>
+            <input type="text" class="form-control form-control-sm font-monospace" x-model="deviceForm.psk"
+              placeholder="base64-encoded key" autocomplete="off">
+          </div>
+          <div class="col-sm-8" x-show="authMode === 'password'">
+            <label class="form-label small mb-1">Password</label>
+            <input type="password" class="form-control form-control-sm" x-model="deviceForm.password"
+              autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <button class="btn btn-secondary btn-sm" :disabled="isLoadingEntities || !deviceForm.serverName.trim()"
+            @click="loadEntities()">
+            <span x-show="isLoadingEntities" class="spinner-border spinner-border-sm me-1" role="status"></span>
+            Connect &amp; Load Entities
+          </button>
+        </div>
+
+        <!-- Device info banner -->
+        <div x-show="deviceInfo" class="alert alert-info py-2 small mb-3">
+          <strong x-text="deviceInfo?.name"></strong>
+          <span class="text-muted ms-2" x-text="deviceInfo?.manufacturer + ' · ' + deviceInfo?.model"></span>
+        </div>
+
+        <!-- Entity table -->
+        <div x-show="deviceEntities.length > 0" class="mb-3">
+          <p class="small text-muted mb-2">Select which entities to include and choose the main entity.</p>
+          <table class="table table-sm table-hover">
+            <thead class="table-secondary">
+              <tr>
+                <th style="width: 2.5rem;">Include</th>
+                <th>Entity Name</th>
+                <th>Type</th>
+                <th style="width: 4rem;" class="text-center">Main</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="e in deviceEntities" :key="e.key">
+                <tr :class="isExcluded(e.key) ? 'table-secondary opacity-50' : ''">
+                  <td class="align-middle text-center">
+                    <input type="checkbox" class="form-check-input"
+                      :checked="!isExcluded(e.key)"
+                      @change="toggleExcluded(e.key)">
+                  </td>
+                  <td class="align-middle" x-text="e.name || ('Key ' + e.key)"></td>
+                  <td class="align-middle">
+                    <span class="badge bg-secondary" x-text="e.kind"></span>
+                  </td>
+                  <td class="align-middle text-center">
+                    <input type="radio" class="form-check-input"
+                      x-model.number="mainEntityKey"
+                      :value="e.key"
+                      :disabled="isExcluded(e.key)">
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Light config -->
+        <div x-show="hasLightEntities" class="mb-3">
+          <h6 class="small fw-semibold mb-2">Light Configuration</h6>
+          <div class="row g-2">
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Cool White (mireds)</label>
+              <input type="number" class="form-control form-control-sm"
+                x-model.number="deviceForm.lightConfig.coolWhite" placeholder="140">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Warm White (mireds)</label>
+              <input type="number" class="form-control form-control-sm"
+                x-model.number="deviceForm.lightConfig.warmWhite" placeholder="500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary btn-sm" @click="saveDevice()">Save Device</button>
+          <button class="btn btn-outline-secondary btn-sm" @click="configuringDevice = null; editingDeviceIndex = null;">Cancel</button>
+        </div>
+
+      </div>
+
+      <!-- Configured Devices -->
+      <h6 class="border-bottom pb-2 mb-3 mt-4">Configured Devices</h6>
+
+      <p x-show="devices.length === 0" class="text-muted small">No devices configured yet.</p>
+
+      <table x-show="devices.length > 0" class="table table-sm mb-0">
+        <thead class="table-secondary">
+          <tr>
+            <th>Name</th>
+            <th>Server Name</th>
+            <th>Port</th>
+            <th>Main Key</th>
+            <th>Excluded</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(d, i) in devices" :key="i">
+            <tr>
+              <td class="align-middle" x-text="d.name"></td>
+              <td class="align-middle" x-text="d.serverName"></td>
+              <td class="align-middle" x-text="d.port ?? 6053"></td>
+              <td class="align-middle"><code x-text="d.mainEntityKey"></code></td>
+              <td class="align-middle">
+                <span x-show="d.excludedKeys?.length" class="badge bg-warning text-dark" x-text="d.excludedKeys?.length + ' key(s)'"></span>
+                <span x-show="!d.excludedKeys?.length" class="text-muted small">—</span>
+              </td>
+              <td class="align-middle text-end text-nowrap">
+                <button class="btn btn-outline-secondary btn-sm me-1" @click="openDeviceConfig({}, i)">Edit</button>
+                <button class="btn btn-outline-danger btn-sm" @click="removeDevice(i)">Remove</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
     </div>
   </div>
 
-</div>
+  <!-- ── Homebridge Service Mapping ──────────────────────────────────────── -->
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <button class="btn btn-outline-secondary btn-sm" @click="showServiceMapping = !showServiceMapping">
+      <span x-text="showServiceMapping ? '▲' : '▼'"></span>
+      Homebridge Service Mapping
+    </button>
+    <small class="text-muted" x-show="!showServiceMapping">
+      Optional — map Homebridge services to dot-notation keys for ESPHome events.
+    </small>
+  </div>
 
-<style>
+  <div x-show="showServiceMapping">
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">Homebridge Service Mapping</h5>
+    </div>
+    <div class="card-body">
 
-  .hide {
-    display: none;
-  }
+      <p class="text-muted small mb-3">
+        Assign dot-notation keys (e.g., <code>living_room.light</code>) to Homebridge services.
+        These mappings let ESPHome device events target specific Homebridge accessories.
+      </p>
 
-  .disabled {
-    pointer-events: none;
-    opacity: 0.5;
-  }
-</style>
+      <div class="form-check form-switch mb-4">
+        <input class="form-check-input" type="checkbox" id="hapEnabled" x-model="hapEnabled"
+          @change="_persist()">
+        <label class="form-check-label small" for="hapEnabled">Enable Homebridge Events</label>
+      </div>
 
+      <!-- Current Mappings -->
+      <h6 class="border-bottom pb-2 mb-3">Current Mappings</h6>
 
-<script>
+      <p x-show="!serviceMappingEntries.length" class="text-muted small">No mappings configured.</p>
 
-  (async () => {
-    /*********************************************************************
-     * Initialize Javascript supporting code
-     */
-    homebridge.showSpinner();
+      <table x-show="serviceMappingEntries.length > 0" class="table table-sm mb-4">
+        <thead class="table-secondary">
+          <tr>
+            <th>Key</th>
+            <th>ID</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="entry in serviceMappingEntries" :key="entry[0]">
+            <tr>
+              <td class="align-middle"><code x-text="entry[1]"></code></td>
+              <td class="align-middle">
+                <small class="text-muted font-monospace" x-text="entry[0].slice(0, 16) + '…'"></small>
+              </td>
+              <td class="align-middle text-end">
+                <button class="btn btn-outline-danger btn-sm" @click="removeById(entry[0])">Remove</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
 
-    const { defaultConfig, defaultDeviceConfig } = await homebridge.request('/getDefaults');
-    const pluginConfig = await homebridge.getPluginConfig();
-    const configSchema = await homebridge.getPluginConfigSchema();
+      <!-- Discover Services -->
+      <h6 class="border-bottom pb-2 mb-3">Discover Services</h6>
 
-    if (!pluginConfig.length) {
-      pluginConfig.push({});
-    }
-    let configuration = pluginConfig[0];
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-auto">
+          <label class="form-label small mb-1">Homebridge PIN</label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+            x-model="pin" placeholder="031-45-154" style="width: 155px;">
+        </div>
+        <div class="col-auto" style="padding-bottom: 1.6rem;">
+          <button class="btn btn-primary btn-sm"
+            :disabled="pinEmpty || isDiscovering"
+            @click="discover()">
+            Discover Services
+          </button>
+        </div>
+        <div class="col-auto align-self-end pb-3">
+          <small class="text-muted" x-text="discoverStatus"></small>
+        </div>
+      </div>
 
-    // Helper funcion to contol debug messages
-    function debugLog(s) {
-      if (configuration.uiDebug) {
-        console.debug(s);
-      }
-    }
+      <div x-show="pinChanged && serviceMappingEntries.length > 0"
+           class="alert alert-warning small py-2 mt-2">
+        Discovering with a new PIN will update the plugin configuration.
+        If you are connecting to a <strong>different bridge</strong>,
+        your existing service mappings may no longer be valid — consider
+        removing them first.
+      </div>
 
-    debugLog(`Plugin Config:\n${JSON.stringify(configuration, null, 2)}`);
-    configuration = await homebridge.request('/mergeToDefault', { config: configuration });
+      <!-- Services table -->
+      <div x-show="hasDiscovered">
 
-    /*********************************************************************
-     * showToast event listener
-     * Provides information from server-side to the end user.
-     */
-    homebridge.addEventListener('showToast', (event) => {
-      debugLog(`showToast Received: ${JSON.stringify(event.data)}`);
-      if (event.data.success) {
-        homebridge.toast.success(event.data.msg);
-      } else {
-        homebridge.toast.error(event.data.msg);
-      }
-    });
+        <!-- Filter bar -->
+        <div class="d-flex align-items-center gap-3 mb-2">
+          <input type="search" class="form-control form-control-sm" x-model="filterText"
+            placeholder="Filter by name…" style="max-width: 200px;" autocomplete="off">
+        </div>
 
-    /*********************************************************************
-     * filterOutDefaults
-     * returns object for config.json that has default values removed
-     */
-    function filterOutDefaults(object, defaults) {
-
-      function deleteEmptyObjects(object) {
-        for (const [k, v] of Object.entries(object)) {
-          if (!v || typeof v !== 'object' || v === null) {
-            continue;
-          }
-          deleteEmptyObjects(v);
-          if (Object.keys(v).length === 0) {
-            delete object[k];
-          }
-        }
-        return object;
-      }
-
-      let newObject = {};
-      for (const [k, v] of Object.entries(object)) {
-        if (k === 'devices') {
-          newObject[k] = v.map((device) => {
-            return filterOutDefaults(device, defaultDeviceConfig);
-          });
-        } else if (typeof v === 'object' && v !== null) {
-          newObject[k] = filterOutDefaults(v, defaults[k]);
-        } else if (typeof defaults === 'object' && k in defaults && v === defaults[k]) {
-          continue;
-        } else {
-          newObject[k] = v;
-        }
-      }
-      return deleteEmptyObjects(newObject);
-    }
-
-    /*********************************************************************
-     * createForm
-     * Update the plugin config GUI. Does not save to config.json
-     */
-    function createForm(configSchema, configuration) {
-      const configForm = homebridge.createForm(configSchema, configuration);
-      configForm.onChange(async (changes) => {
-        changes = filterOutDefaults(changes, defaultConfig);
-        debugLog(`[createForm] Config changes:\n${JSON.stringify(changes, null, 2)}`);
-        await homebridge.updatePluginConfig([changes]);
-      });
-    }
-
-    createForm(configSchema, configuration);
-    homebridge.hideSpinner();
-
-    const main = document.getElementById('main');
-    const loginSection = document.getElementById('login')
-    const userPass = document.getElementById('userPass');
-
-    document.getElementById('useDefaultProfile').addEventListener('change', function (e) {
-      if (e.target.checked === true) {
-        loginSection.classList.add('disabled');
-      } else {
-        loginSection.classList.remove('disabled');
-      }
-    });
-
-    /*********************************************************************
-     * Discover button clicked....
-     */
-    document.getElementById('discoverBtn').addEventListener('click', async (e) => {
-      e.preventDefault();
-
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      const useDefaultProfile = document.getElementById('useDefaultProfile').checked === true;
-
-      let ipAddrs = document.getElementById('ip').value ? document.getElementById('ip').value.split(/[\s,]+/) : [];
-
-      homebridge.showSpinner();
-
-      console.info(`Request login...`);
-      try {
-        await homebridge.request('/login', { username, password, useDefaultProfile });
-      } catch (e) {
-        homebridge.toast.error(e.message);
-        homebridge.hideSpinner();
-        // Abort if we did not login successfully.
-        return;
-      }
-
-      const table = document.getElementById('discoverTable').getElementsByTagName('tbody')[0];
-      table.innerHTML = '';
-
-      // Merge current config over to the server so discover has latest device config...
-      let currentConfig = await homebridge.getPluginConfig();
-      currentConfig = currentConfig.length > 0 ? currentConfig[0] : {};
-      configuration = await homebridge.request('/mergeToDefault', { config: currentConfig });
-
-      // Add any existing IP addresses to list user provided
-      configuration.devices.forEach((d) => {
-        if (d.advanced_options?.ip) ipAddrs.push(d.advanced_options.ip);
-      });
-      // Remove duplicates from the array
-      ipAddrs = [...new Set(ipAddrs)];
-      // Check that all are valid IPv4 addresses
-      const validIPs = ipAddrs.every(ip => {
-        const regexIPv4 = /^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/gi;
-        return (regexIPv4.test(ip));
-      });
-      if (!validIPs) {
-        homebridge.toast.error(`Invalid IP address provided`);
-        homebridge.hideSpinner();
-        // Abort if we have invalid IP address
-        return;
-      }
-
-      // Ask server to discover all devices...
-      console.info(`Request device discovery...`);
-      debugLog(`Specific IP addresses: ${JSON.stringify(ipAddrs)}`);
-      const devices = await homebridge.request('/discover', { ip: ipAddrs.length ? ipAddrs : undefined });
-      debugLog(`Discovered devices:\n${JSON.stringify(devices, null, 2)}`);
-
-      currentConfig.devices = currentConfig.devices || [];
-      if (devices) {
-        devices.forEach((device) => {
-          // Token and key only needed for protocol version 3
-          const validAuth = (device.token && device.key) || device.version !== 3;
-          const tr = table.insertRow();
-          const td = tr.insertCell();
-          td.appendChild(document.createTextNode(device.name));
-          td.setAttribute('scope', 'row');
-
-          tr.insertCell().appendChild(document.createTextNode(device.displayName));
-
-          // model with lua download link
-          const modelCell = tr.insertCell();
-
-          const download_btn = document.createElement('button');
-          download_btn.innerText = device.model;
-          download_btn.className = 'btn btn-outline-secondary btn-sm';
-          download_btn.addEventListener('click', async () => {
-            try {
-              homebridge.showSpinner();
-              const file_data_str = await homebridge.request('/downloadLua', { deviceType: device.type, deviceSn: device.sn });
-
-              const modal = document.createElement("div");
-              modal.className = 'modal fade';
-              modal.id = 'luaCodeModal';
-              modal.setAttribute('tabindex', '-1');
-              modal.setAttribute('aria-labelledby', 'luaCodeModalLabel');
-              modal.setAttribute('aria-hidden', 'true');
-
-              modal.innerHTML = `
-                <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                  <div class="modal-content">
-                    <div class="modal-header">
-                      <h5 class="modal-title" id="luaCodeModalLabel">Lua Code for ${device.model}</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                      <div class="mb-3 btn-toolbar">
-                        <div class="btn-group me-2">
-                          <button id="selectAllLuaBtn" class="btn btn-secondary">Select All</button>
-                        </div>
-                        <small class="text-warning ms-2 align-self-center">Save this as ${device.type.toString(16)}_${device.model}.lua</small>
-                      </div>
-                      <pre id="luaCodePre"><code style="color: var(--bs-body-color);">${file_data_str}</code></pre>
-                    </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-secondary">
+              <tr>
+                <th>Accessory Name</th>
+                <th x-data="{ open: false }" class="text-nowrap"
+                    :class="typeFilters.length ? 'user-select-none' : ''"
+                    :style="typeFilters.length ? 'position: relative; cursor: pointer;' : 'position: relative;'"
+                    @click="if (typeFilters.length) open = !open"
+                    @click.outside="open = false">
+                  <span :class="typeFilters.some(f => !f.visible) ? 'text-warning' : ''">Service Type</span>
+                  <span x-show="typeFilters.length" class="text-secondary ms-1"
+                        style="font-size: 0.75em;">&#9660;</span>
+                  <div x-show="open"
+                       class="shadow border rounded py-1 bg-body"
+                       style="position: absolute; top: 100%; right: 0; z-index: 1000; min-width: max-content;">
+                    <template x-for="f in typeFilters" :key="f.type">
+                      <label class="d-flex align-items-center gap-2 px-3 py-1 small user-select-none"
+                        style="cursor: pointer; white-space: nowrap;"
+                        @click.stop>
+                        <input type="checkbox" class="form-check-input mt-0 flex-shrink-0" x-model="f.visible">
+                        <span x-text="f.type"></span>
+                      </label>
+                    </template>
                   </div>
-                </div>
-              `;
+                </th>
+                <th style="min-width: 210px;">Mapping Key</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Empty state -->
+              <tr x-show="filteredServices.length === 0">
+                <td colspan="4" class="text-center text-muted py-3" x-text="noResultsMessage"></td>
+              </tr>
+              <!-- Service rows -->
+              <template x-for="service in filteredServices" :key="service.nameBasedUniqueId">
+                <tr>
+                  <td class="align-middle">
+                    <span x-text="service.serviceName ?? service.type ?? '—'"></span>
+                    <small x-show="service.values?.ConfiguredName" class="d-block text-muted"
+                      x-text="service.values?.ConfiguredName"></small>
+                  </td>
+                  <td class="align-middle text-nowrap">
+                    <span class="badge bg-secondary" x-text="service.humanType ?? service.type ?? '—'"></span>
+                  </td>
+                  <td class="align-middle">
+                    <input type="text" autocomplete="off" :spellcheck="false"
+                      :class="keyClass(service.nameBasedUniqueId)"
+                      placeholder="e.g. living_room.light"
+                      :value="rowKeys[service.nameBasedUniqueId] ?? ''"
+                      @input="rowKeys[service.nameBasedUniqueId] = $event.target.value">
+                  </td>
+                  <td class="align-middle text-end text-nowrap">
+                    <button x-show="isMapped(service.nameBasedUniqueId)"
+                      class="btn btn-outline-danger btn-sm"
+                      @click="removeById(service.nameBasedUniqueId)">
+                      Remove
+                    </button>
+                    <button x-show="!isMapped(service.nameBasedUniqueId)"
+                      class="btn btn-primary btn-sm"
+                      :disabled="!isKeyValid(service.nameBasedUniqueId)"
+                      @click="mapService(service)">
+                      Map
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
 
-              main.appendChild(modal);
+      </div>
 
-              // Initialize the Bootstrap modal
-              const bootstrapModal = new bootstrap.Modal(modal);
-              bootstrapModal.show();
+    </div>
+  </div>
+  </div> <!-- /showServiceMapping -->
 
-              document.getElementById('selectAllLuaBtn').addEventListener('click', () => {
-                const codeElement = document.getElementById('luaCodePre');
-                const selection = window.getSelection();
-                const range = document.createRange();
-
-                range.selectNodeContents(codeElement);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              });
-
-              // Clean up when modal is hidden
-              modal.addEventListener('hidden.bs.modal', () => {
-                main.removeChild(modal);
-              });
-
-              homebridge.hideSpinner();
-
-            } catch (e) {
-              homebridge.hideSpinner();
-              homebridge.toast.error(e.message);
-            }
-          });
-
-          modelCell.appendChild(download_btn);
-
-          tr.insertCell().appendChild(document.createTextNode(device.id));
-          tr.insertCell().appendChild(document.createTextNode(device.version));
-          if (device.version === 3) {
-            tr.insertCell().appendChild(document.createTextNode(
-              (device.token ? (device.token.slice(0, 6) + '...' + device.token.slice(-4)) : 'token missing') + '\n' +
-              (device.key ? (device.key.slice(0, 6) + '...' + device.key.slice(-4)) : 'key missing')
-            ));
-          } else {
-            tr.insertCell().appendChild(document.createTextNode('not needed'));
-          }
-          tr.insertCell().appendChild(document.createTextNode(device.ip));
-
-
-          const addCell = tr.insertCell();
-          if (device.displayName === 'Unknown') {
-            addCell.appendChild(document.createTextNode('Not supported!\nDownload the Lua file and attach it to a GitHub issue.'));
-          } else if (!validAuth) {
-            addCell.appendChild(document.createTextNode('No credentials'));
-          } else if (currentConfig.devices.find((d) => d.id === device.id)) {
-            // We already have a record for this device, either with device ID, add button to update it.
-            const button = document.createElement('button');
-            button.innerText = 'Update';
-            button.className = 'btn btn-outline-secondary btn-sm';
-            button.addEventListener('click', async () => {
-              // Update button clicked...
-              const i = configuration.devices.findIndex((o) => o.id === device.id);
-              configuration.devices[i].advanced_options.token = device.token;
-              configuration.devices[i].advanced_options.key = device.key;
-              // update IP address only if we are already storing an IP address (it might have changed)
-              configuration.devices[i].advanced_options.ip = configuration.devices[i].advanced_options.ip ? device.ip : undefined;
-              // refresh view
-              createForm(configSchema, configuration);
-
-              addCell.removeChild(button);
-              addCell.appendChild(document.createTextNode('Updated'));
-
-              homebridge.toast.success('Device Updated');
-            });
-            addCell.appendChild(button);
-          } else {
-            // No record for this device, add button to add it.
-            const button = document.createElement('button');
-            button.innerText = 'Add';
-            button.className = 'btn btn-secondary btn-sm';
-            button.addEventListener('click', async () => {
-              // Add button clicked...
-              const newDevice = {
-                id: device.id,
-                name: device.name,
-                type: device.displayName,
-                advanced_options: {
-                  ...defaultDeviceConfig.advanced_options,
-                  // add IP address only if it is one we were asked to find
-                  ip: (ipAddrs.includes(device.ip)) ? device.ip : undefined,
-                  token: device.token,
-                  key: device.key,
-                }
-              };
-
-              configuration.devices.push({
-                ...defaultDeviceConfig,
-                ...newDevice
-              });
-              debugLog(`Adding new device:\n${JSON.stringify({ ...defaultDeviceConfig, ...newDevice }, null, 2)}`);
-              // refresh view
-              createForm(configSchema, configuration);
-
-              addCell.removeChild(button);
-              addCell.appendChild(document.createTextNode('Added'));
-
-              homebridge.toast.success('Device added');
-            });
-            addCell.appendChild(button);
-          }
-        });
-      } else {
-        table.innerHTML += `<tr><td>No devices found!</td></tr>`;
-      }
-      document.getElementById('discoverTableWrapper').style.display = 'block';
-
-      homebridge.hideSpinner();
-    });
-  })();
-
-</script>
+</div>

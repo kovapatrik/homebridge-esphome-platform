@@ -1,10 +1,9 @@
-import EventEmitter from 'node:events';
 import type { Switch as SwitchEntity } from '@kovapatrik/esphomeapi-manager';
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { EsphomePlatform } from '../platform.js';
 import type { DeviceConfig } from '../platformUtils.js';
 
-export default class Switch extends EventEmitter {
+export default class Switch {
   service: Service;
 
   constructor(
@@ -13,9 +12,12 @@ export default class Switch extends EventEmitter {
     private config: DeviceConfig,
     private entity: SwitchEntity,
   ) {
-    super();
-
     this.service = this.accessory.getService(platform.Service.Switch) || this.accessory.addService(platform.Service.Switch);
+
+    if (config.mainEntityKey === entity.key) {
+      this.service.setPrimaryService(true);
+    }
+
     this.service.getCharacteristic(platform.Characteristic.On).onGet(this.getOn.bind(this)).onSet(this.setOn.bind(this));
   }
 

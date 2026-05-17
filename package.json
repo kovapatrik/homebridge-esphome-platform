@@ -2,7 +2,7 @@
   "displayName": "Homebridge ESPHome Platform",
   "name": "homebridge-esphome-platform",
   "type": "module",
-  "version": "0.1.1-beta.4",
+  "version": "0.1.2",
   "description": "Homebridge plugin for ESPHome devices",
   "license": "Apache-2.0",
   "repository": {
@@ -31,21 +31,21 @@
     "lint": "biome lint --error-on-warnings ./src",
     "watch": "npm run build && npm link && nodemon",
     "build": "rimraf ./dist && tsc",
+    "generate:hap-defaults": "node scripts/generateHapDefaults.mjs",
     "prepublishOnly": "npm run lint && npm run build",
     "format": "biome format ./src --write",
     "check": "biome check ./src --fix"
   },
-  "keywords": [
-    "homebridge-plugin",
-    "esphome"
-  ],
+  "keywords": ["homebridge-plugin", "esphome"],
   "dependencies": {
-    "@homebridge/plugin-ui-utils": "^2.0.2",
-    "@kovapatrik/esphomeapi-manager": "^0.1.4-beta",
+    "@homebridge/hap-client": "^4.0.4",
+    "@homebridge/plugin-ui-utils": "^2.2.3",
+    "@kovapatrik/esphomeapi-manager": "^0.4.2",
     "lodash": "^4.17.21"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@homebridge/hap-nodejs": "^2.0.2",
     "@types/lodash": "^4.17.17",
     "@types/node": "^22.8.1",
     "homebridge": "^2.0.0-beta.0",

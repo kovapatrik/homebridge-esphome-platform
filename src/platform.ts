@@ -1,11 +1,14 @@
+import EventEmitter from 'node:events';
+import { HapClient, type ServiceType } from '@homebridge/hap-client';
+import type { HapMonitor } from '@homebridge/hap-client/dist/monitor.js';
 import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 import defaultsDeep from 'lodash/defaultsDeep.js';
 import EsphomeAccessory from './platformAccesory.js';
-import { type Config, defaultConfig, defaultDeviceConfig } from './platformUtils.js';
+import { type Config, defaultConfig, defaultDeviceConfig, type DeviceConfig } from './platformUtils.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
-export class EsphomePlatform implements DynamicPlatformPlugin {
+export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
 
@@ -13,13 +16,20 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
   public readonly discoveredCacheUUIDs: string[] = [];
 
+  /** Latest known state for each mapped service, keyed by dot-notation key. */
+  public readonly states: Map<string, { uuid: string; characteristics: ServiceType['serviceCharacteristics'] }> = new Map();
+
   private readonly platformConfig: Config;
+  private readonly hapClient?: HapClient;
+  private hapMonitor?: HapMonitor;
 
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
+    super();
+
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
 
@@ -32,9 +42,20 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
       log.success = log.info;
     }
 
-    this.api.on('didFinishLaunching', () => {
+    if (this.platformConfig.homebridgeEvents.enabled) {
+      this.hapClient = new HapClient({
+        pin: this.platformConfig.homebridgeEvents.pin,
+        config: { debug: this.platformConfig.verbose, discoveryTimeout: 5000 },
+        logger: this.log,
+      });
+      this.hapClient.on('discovery-ended', () => {
+        this.monitorHomebridgeDevices();
+      });
+    }
+
+    this.api.on('didFinishLaunching', async () => {
       log.debug('Executed didFinishLaunching callback');
-      this.discoverDevices();
+      await this.discoverDevices();
     });
   }
 
@@ -44,11 +65,25 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
     this.accessories.set(accessory.UUID, accessory);
   }
 
+  async monitorHomebridgeDevices() {
+    this.hapMonitor = await this.hapClient?.monitorCharacteristics();
+    this.hapMonitor?.on('service-update', (update: ServiceType[]) => {
+      for (const service of update) {
+        if (service.nameBasedUniqueId && service.nameBasedUniqueId in this.platformConfig.homebridgeEvents.serviceMap) {
+          const key = this.platformConfig.homebridgeEvents.serviceMap[service.nameBasedUniqueId];
+          this.states.set(key, { uuid: service.uuid, characteristics: service.serviceCharacteristics });
+          this.log.debug(`Service ${service.nameBasedUniqueId} updated: ${key}`);
+          this.emit('hap-event', key, service.uuid, service.serviceCharacteristics);
+        }
+      }
+    });
+  }
+
   async discoverDevices() {
     const discoveredDevices = await discover(5);
 
     for (const _device of this.platformConfig.devices) {
-      const device = defaultsDeep(_device, defaultDeviceConfig);
+      const device = defaultsDeep(_device, defaultDeviceConfig) as DeviceConfig;
 
       const serviceInfo = discoveredDevices.find((d) => d.server === device.serverName);
       if (!serviceInfo) {
@@ -70,15 +105,15 @@ export class EsphomePlatform implements DynamicPlatformPlugin {
         // the accessory already exists
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
-        new EsphomeAccessory(this, existingAccessory, manager, device);
+        await EsphomeAccessory.create(this, existingAccessory, manager, device);
         this.discoveredCacheUUIDs.push(uuid);
         continue;
       }
 
-      this.log.info('Adding new accessory:', device.serverName);
-      const accessory = new this.api.platformAccessory(device.serverName, uuid);
+      this.log.info('Adding new accessory:', device.name);
+      const accessory = new this.api.platformAccessory(device.name, uuid);
 
-      new EsphomeAccessory(this, accessory, manager, device);
+      await EsphomeAccessory.create(this, accessory, manager, device);
 
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       this.discoveredCacheUUIDs.push(uuid);
