@@ -4,15 +4,30 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: npm dist-tag
+        required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - next
+          - latest
+      version:
+        description: Override package.json version (e.g. 0.2.0-beta.0), leave empty to use the committed one
+        required: false
+        type: string
 
 permissions:
-  id-token: write  # Required for OIDC
+  id-token: write # Required for npm trusted publishing (OIDC)
   contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, 'skip ci')"
+    if: "github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'skip ci')"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -21,4 +36,11 @@ jobs:
           registry-url: https://registry.npmjs.org/
       - run: npm ci
       - run: npm run lint
-      - run: npm publish
+      - name: Set version
+        if: inputs.version != ''
+        run: npm version "$VERSION" --no-git-tag-version
+        env:
+          VERSION: ${{ inputs.version }}
+      - run: npm publish --tag "$TAG"
+        env:
+          TAG: ${{ inputs.tag || 'latest' }}
