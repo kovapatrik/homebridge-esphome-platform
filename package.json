@@ -2,7 +2,7 @@
   "displayName": "Homebridge ESPHome Platform",
   "name": "homebridge-esphome-platform",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Homebridge plugin for ESPHome devices",
   "license": "Apache-2.0",
   "repository": {
@@ -36,11 +36,14 @@
     "format": "biome format ./src --write",
     "check": "biome check ./src --fix"
   },
-  "keywords": ["homebridge-plugin", "esphome"],
+  "keywords": [
+    "homebridge-plugin",
+    "esphome"
+  ],
   "dependencies": {
     "@homebridge/hap-client": "^4.0.4",
     "@homebridge/plugin-ui-utils": "^2.2.3",
-    "@kovapatrik/esphomeapi-manager": "^0.4.2",
+    "@kovapatrik/esphomeapi-manager": "^0.4.3",
     "lodash": "^4.17.21"
   },
   "devDependencies": {

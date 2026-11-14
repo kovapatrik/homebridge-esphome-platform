@@ -1,3 +1,12 @@
+// Mirrors normalizeServerName() in src/platformUtils.ts: `name`, `name.local` and `name.local.` are the same device.
+function normalizeServerName(name) {
+  return (name ?? '').trim().replace(/\.+$/, '').replace(/\.local$/i, '');
+}
+
+function sameServerName(a, b) {
+  return normalizeServerName(a) === normalizeServerName(b);
+}
+
 function createAppData() {
   return {
     // ── Config ────────────────────────────────────────────────────────────────
@@ -271,7 +280,7 @@ function createAppData() {
     },
 
     isConfigured(serverName) {
-      return this.devices.some((d) => d.serverName === serverName);
+      return this.devices.some((d) => sameServerName(d.serverName, serverName));
     },
 
     openDeviceConfig(source = {}, deviceIndex = null) {
@@ -282,7 +291,7 @@ function createAppData() {
 
       // When called from the discovered list, check if the device is already configured
       if (deviceIndex === null && source.serverName) {
-        deviceIndex = this.devices.findIndex((d) => d.serverName === source.serverName);
+        deviceIndex = this.devices.findIndex((d) => sameServerName(d.serverName, source.serverName));
         if (deviceIndex === -1) deviceIndex = null;
       }
 
@@ -392,7 +401,7 @@ function createAppData() {
       if (this.editingDeviceIndex !== null) {
         this.devices[this.editingDeviceIndex] = cfg;
       } else {
-        const existingIdx = this.devices.findIndex((d) => d.serverName === cfg.serverName);
+        const existingIdx = this.devices.findIndex((d) => sameServerName(d.serverName, cfg.serverName));
         if (existingIdx !== -1) {
           this.devices[existingIdx] = cfg;
         } else {

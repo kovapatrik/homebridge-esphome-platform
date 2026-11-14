@@ -1,7 +1,7 @@
-import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils';
 import { HapClient } from '@homebridge/hap-client';
-import { defaultConfig, defaultDeviceConfig } from '../dist/platformUtils.js';
-import { discover, Manager } from '@kovapatrik/esphomeapi-manager';
+import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils';
+import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
+import { defaultConfig, defaultDeviceConfig, toConnectAddress } from '../dist/platformUtils.js';
 
 class UiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -49,7 +49,7 @@ class UiServer extends HomebridgePluginUiServer {
     this.onRequest('/discoverEsphomeDevices', async ({ timeout = 5 } = {}) => {
       try {
         const found = await discover(timeout);
-        return found.map(d => ({
+        return found.map((d) => ({
           friendlyName: d.friendlyName,
           serverName: d.server,
           address: d.addresses?.[0] ?? d.server,
@@ -64,13 +64,14 @@ class UiServer extends HomebridgePluginUiServer {
       let manager;
       try {
         manager = await Manager.connect({
-          address,
+          // Bare mDNS names need the `.local` suffix to resolve on Linux; IPs pass through unchanged.
+          address: toConnectAddress(address),
           port: port ?? 6053,
           psk: psk || undefined,
           password: password || undefined,
         });
         const info = manager.getDeviceInfo();
-        const entities = manager.getEntities().map(e => ({
+        const entities = manager.getEntities().map((e) => ({
           key: e.key,
           name: e.name,
           kind: e.kind,

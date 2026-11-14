@@ -54,7 +54,7 @@
             },
             "serverName": {
               "title": "Server Name",
-              "description": "mDNS hostname or IP address of the ESPHome device",
+              "description": "ESPHome device name (e.g. bed-sensor); the .local suffix is optional. Use the IP Address field for a static IP.",
               "type": "string"
             },
             "port": {

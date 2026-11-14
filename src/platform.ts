@@ -5,7 +5,7 @@ import { Manager, discover } from '@kovapatrik/esphomeapi-manager';
 import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 import defaultsDeep from 'lodash/defaultsDeep.js';
 import EsphomeAccessory from './platformAccesory.js';
-import { type Config, defaultConfig, defaultDeviceConfig, type DeviceConfig } from './platformUtils.js';
+import { type Config, type DeviceConfig, defaultConfig, defaultDeviceConfig, getDeviceAddress, normalizeServerName } from './platformUtils.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
 export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlugin {
@@ -55,7 +55,11 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
 
     this.api.on('didFinishLaunching', async () => {
       log.debug('Executed didFinishLaunching callback');
-      await this.discoverDevices();
+      try {
+        await this.discoverDevices();
+      } catch (e) {
+        log.error('Failed to discover devices:', e instanceof Error ? (e.stack ?? e.message) : e);
+      }
     });
   }
 
@@ -79,44 +83,67 @@ export class EsphomePlatform extends EventEmitter implements DynamicPlatformPlug
     });
   }
 
+  /** Keep a configured-but-unreachable device's cached accessory so HomeKit setup isn't lost. */
+  private keepCachedAccessory(uuid: string) {
+    if (this.accessories.has(uuid) && !this.discoveredCacheUUIDs.includes(uuid)) {
+      this.discoveredCacheUUIDs.push(uuid);
+    }
+  }
+
   async discoverDevices() {
-    const discoveredDevices = await discover(5);
+    let discoveredDevices: Awaited<ReturnType<typeof discover>> = [];
+    try {
+      discoveredDevices = await discover(5);
+    } catch (e) {
+      this.log.error('mDNS discovery failed:', e instanceof Error ? e.message : e);
+    }
 
     for (const _device of this.platformConfig.devices) {
       const device = defaultsDeep(_device, defaultDeviceConfig) as DeviceConfig;
+      const serverName = normalizeServerName(device.serverName);
+      const uuid = this.api.hap.uuid.generate(serverName);
 
-      const serviceInfo = discoveredDevices.find((d) => d.server === device.serverName);
-      if (!serviceInfo) {
-        this.log.debug(`[${device.serverName}] Device not found.`);
-        continue;
+      // A static IP bypasses mDNS entirely, so only require discovery when connecting by hostname.
+      if (!device.ip?.trim()) {
+        const serviceInfo = discoveredDevices.find((d) => normalizeServerName(d.server) === serverName);
+        if (!serviceInfo) {
+          this.log.warn(`[${serverName}] Device not found via mDNS discovery.`);
+          this.keepCachedAccessory(uuid);
+          continue;
+        }
       }
 
-      const uuid = this.api.hap.uuid.generate(device.serverName);
+      const address = getDeviceAddress(device);
 
-      const manager = await Manager.connect({
-        address: device.serverName,
-        port: device.port,
-        password: device.password,
-        psk: device.psk,
-      });
+      try {
+        const manager = await Manager.connect({
+          address,
+          port: device.port,
+          password: device.password,
+          psk: device.psk,
+        });
 
-      const existingAccessory = this.accessories.get(uuid);
-      if (existingAccessory) {
-        // the accessory already exists
-        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+        const existingAccessory = this.accessories.get(uuid);
+        if (existingAccessory) {
+          // the accessory already exists
+          this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
-        await EsphomeAccessory.create(this, existingAccessory, manager, device);
+          await EsphomeAccessory.create(this, existingAccessory, manager, device);
+          this.discoveredCacheUUIDs.push(uuid);
+          continue;
+        }
+
+        this.log.info('Adding new accessory:', device.name);
+        const accessory = new this.api.platformAccessory(device.name, uuid);
+
+        await EsphomeAccessory.create(this, accessory, manager, device);
+
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
         this.discoveredCacheUUIDs.push(uuid);
-        continue;
+      } catch (e) {
+        this.log.error(`[${serverName}] Failed to connect to ${address}:${device.port}:`, e instanceof Error ? e.message : e);
+        this.keepCachedAccessory(uuid);
       }
-
-      this.log.info('Adding new accessory:', device.name);
-      const accessory = new this.api.platformAccessory(device.name, uuid);
-
-      await EsphomeAccessory.create(this, accessory, manager, device);
-
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      this.discoveredCacheUUIDs.push(uuid);
     }
 
     // you can also deal with accessories from the cache which are no longer present by removing them from Homebridge
